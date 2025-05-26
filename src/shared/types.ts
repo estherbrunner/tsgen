@@ -101,7 +101,7 @@ export interface LintIssue {
 
 // Results of running tests
 export interface TestResult {
-  // Whether all tests passed
+  // Whether all tests passed (no errors or failures, warnings OK)
   success: boolean;
 
   // List of test results
@@ -109,6 +109,18 @@ export interface TestResult {
 
   // Overall test coverage percentage (0-100)
   coverage?: number;
+
+  // Label for the test suite
+  label?: string;
+
+  // Total execution time for all tests (in milliseconds)
+  totalExecutionTime?: number;
+
+  // Whether there are warnings (linter warnings, unused vars, etc)
+  hasWarnings?: boolean;
+
+  // Linter-specific warnings that don't fail the function but should be shown
+  linterWarnings?: LintIssue[];
 }
 
 // Result of a single test case
@@ -116,12 +128,18 @@ export interface TestCaseResult {
   // Name or description of the test
   name: string;
 
+  // Description of what this test is checking
+  description: string;
+
   // Whether the test passed
   passed: boolean;
+
+  // Status of the test execution
+  status: 'passed' | 'failed' | 'error' | 'skipped' | 'warning';
 
   // Message describing the test result
   message: string;
 
   // Time taken to run the test (in milliseconds)
-  executionTime?: number;
+  executionTime: number;
 }

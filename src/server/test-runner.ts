@@ -1,280 +1,471 @@
 /**
  * Test runner for TypeScript functions
- * Executes tests against generated functions
+ * Executes tests against generated functions using two-pillar approach:
+ * 1. Generic tests for type safety and edge cases
+ * 2. LLM-enhanced specific tests for domain logic
  */
 
-import { TestResult, TestCaseResult } from '../shared/types';
+import { TestResult, TestCaseResult, LintResult } from '../shared/types';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { spawnSync } from 'child_process';
+import { 
+  extractFunctionSignature, 
+  generateGenericTests,
+  GenericTestCase,
+  FunctionSignature 
+} from './generic-test-generator';
+import { 
+  enhanceTestsWithLLM, 
+  enhanceTestsWithLLMOrFallback,
+  generateFallbackTests,
+  LLMTestCase 
+} from './llm-test-enhancer';
+import { lint } from './linter';
 
 /**
- * Run tests on TypeScript code
+ * Run comprehensive tests on TypeScript code
  *
  * @param code - The TypeScript code to test
- * @param testCases - Array of test case descriptions
+ * @param originalPrompt - The original user request for context
+ * @param userTestCases - Optional user-provided test cases
  * @returns Result of running tests
  */
 export async function runTests(
   code: string,
-  testCases: string[] = []
+  originalPrompt: string = '',
+  userTestCases: string[] = []
 ): Promise<TestResult> {
-  // If no test cases provided, generate some basic tests
-  const effectiveTestCases =
-    testCases.length > 0 ? testCases : generateBasicTests(code);
-
-  // Create temporary files to hold the code and tests
-  const tempFunctionFileName = `function-${randomUUID()}.ts`;
-  const tempTestFileName = `test-${randomUUID()}.ts`;
-  const tempFunctionPath = join(process.cwd(), tempFunctionFileName);
-  const tempTestPath = join(process.cwd(), tempTestFileName);
-
+  const startTime = Date.now();
+  
   try {
-    // Write the function code to the temporary file
-    writeFileSync(tempFunctionPath, code);
-
-    // Generate and write test code
-    const testCode = generateTestCode(
-      code,
-      effectiveTestCases,
-      tempFunctionFileName
+    // First, check for syntax errors by running the linter
+    const lintResult = await lint(code);
+    const hasSyntaxErrors = lintResult.issues.some(issue => 
+      issue.severity === 'error' && (
+        issue.message.includes('SyntaxError') ||
+        issue.message.includes('Unexpected token') ||
+        issue.message.includes('Missing semicolon') ||
+        issue.message.includes('Unexpected end of input') ||
+        issue.rule === 'parser-error'
+      )
     );
-    writeFileSync(tempTestPath, testCode);
+    const lintWarnings = lintResult.issues.filter(issue => issue.severity === 'warning');
+    
+    // Only return early for actual syntax errors, not style or other linting errors
+    if (hasSyntaxErrors) {
+      const syntaxError = lintResult.issues.find(issue => issue.severity === 'error');
+      return createSyntaxErrorResult(code, syntaxError?.message || 'Syntax error in generated code', Date.now() - startTime, lintWarnings);
+    }
+    
+    // Extract function signature
+    const signature = extractFunctionSignature(code);
+    
+    // Generate generic tests (Pillar 1)
+    const genericTests = generateGenericTests(signature);
+    
+    // Enhance with LLM-specific tests (Pillar 2)
+    let llmTests: LLMTestCase[] = [];
+    if (originalPrompt) {
+      llmTests = await enhanceTestsWithLLMOrFallback({
+        originalPrompt,
+        functionCode: code,
+        functionSignature: signature,
+        genericTests
+      });
+    }
+    
+    // Add user-provided test cases if any
+    const userTests = parseUserTestCases(userTestCases, signature);
+    
+    // Create temporary files
+    const tempFunctionFileName = `function-${randomUUID()}.ts`;
+    const tempTestFileName = `test-${randomUUID()}.ts`;
+    const tempFunctionPath = join(process.cwd(), tempFunctionFileName);
+    const tempTestPath = join(process.cwd(), tempTestFileName);
 
-    // Run the tests using Bun
-    const testResult = spawnSync('bun', ['test', tempTestPath], {
-      encoding: 'utf-8',
-    });
+    try {
+      // Write the function code
+      writeFileSync(tempFunctionPath, code);
 
-    // Parse test results
-    const testResults = parseTestResults(
-      testResult.stdout,
-      testResult.stderr,
-      effectiveTestCases
-    );
+      // Generate comprehensive test code
+      const testCode = generateComprehensiveTestCode(
+        code,
+        signature,
+        genericTests,
+        llmTests,
+        userTests,
+        tempFunctionFileName
+      );
+      
 
-    return {
-      success: testResults.every(test => test.passed),
-      tests: testResults,
-    };
+      
+      writeFileSync(tempTestPath, testCode);
+
+      // Run the tests using Bun with minimal output
+      const testResult = spawnSync('bun', ['test', tempTestPath], {
+        encoding: 'utf-8',
+        timeout: 10000 // 10 second timeout
+      });
+
+
+
+      // Parse test results
+      const testResults = parseSimpleTestResults(
+        testResult.stdout,
+        testResult.stderr,
+        [...genericTests, ...llmTests, ...userTests]
+      );
+
+      const totalExecutionTime = Date.now() - startTime;
+      
+      const passedTests = testResults.filter(test => test.status === 'passed').length;
+      const totalTests = testResults.length;
+      const successRate = passedTests / totalTests;
+      
+      return {
+        success: successRate >= 0.6, // Consider success if 60% or more tests pass
+        tests: testResults,
+        label: `Test ${signature.name}`,
+        totalExecutionTime,
+        hasWarnings: lintWarnings.length > 0,
+        linterWarnings: lintWarnings
+      };
+      
+    } finally {
+      // Clean up temporary files
+      try {
+        unlinkSync(tempFunctionPath);
+        unlinkSync(tempTestPath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+    
   } catch (error) {
-    // If tests fail to run, return a single failed test
+    const totalExecutionTime = Date.now() - startTime;
+    
     return {
       success: false,
       tests: [
         {
-          name: 'Test execution',
+          name: 'test_setup',
+          description: 'Test setup and preparation',
           passed: false,
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Unknown error during test execution',
-        },
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unknown error during test setup',
+          executionTime: totalExecutionTime
+        }
       ],
+      label: 'Failed test suite',
+      totalExecutionTime,
+      hasWarnings: false
     };
-  } finally {
-    // Clean up the temporary files
-    try {
-      unlinkSync(tempFunctionPath);
-      unlinkSync(tempTestPath);
-    } catch (e) {
-      // Ignore errors when deleting the temporary files
-    }
   }
 }
 
 /**
- * Extract function name from TypeScript code
- *
- * @param code - TypeScript code containing a function
- * @returns The function name
+ * Parse user-provided test cases into structured format
  */
-function extractFunctionName(code: string): string {
-  const functionMatch = code.match(/function\s+(\w+)/);
-  return functionMatch ? functionMatch[1] : 'unknownFunction';
+function parseUserTestCases(testCases: string[], signature: FunctionSignature): LLMTestCase[] {
+  return testCases.map((testCase, index) => {
+    const parsed = parseSimpleTestCase(testCase, signature);
+    return {
+      name: `user_test_${index + 1}`,
+      description: testCase,
+      input: parsed.input,
+      expectedOutput: parsed.expectedOutput,
+      shouldThrow: parsed.shouldThrow,
+      reasoning: 'User-provided test case'
+    };
+  });
 }
 
 /**
- * Generate test code for a TypeScript function
- *
- * @param code - The TypeScript function code
- * @param testCases - Array of test case descriptions
- * @param functionFilePath - Path to the function file
- * @returns Generated test code
+ * Parse simple test case string
  */
-function generateTestCode(
+function parseSimpleTestCase(testCase: string, signature: FunctionSignature): {
+  input: any[];
+  expectedOutput?: any;
+  shouldThrow: boolean;
+} {
+  // Extract input pattern
+  const inputMatch = testCase.match(/input\s+(\[.*?\]|".*?"|'.*?'|\d+)/i);
+  const expectedMatch = testCase.match(/(?:should\s+)?return\s+(\[.*?\]|".*?"|'.*?'|\d+|true|false)/i);
+  
+  let input: any[] = [];
+  let expectedOutput: any;
+  let shouldThrow = false;
+  
+  if (inputMatch) {
+    try {
+      const inputValue = eval(inputMatch[1]);
+      input = Array.isArray(inputValue) ? inputValue : [inputValue];
+    } catch {
+      input = [inputMatch[1]];
+    }
+  } else {
+    // Generate default inputs
+    input = signature.parameters.map(p => getDefaultValueForType(p.type));
+  }
+  
+  if (expectedMatch) {
+    try {
+      expectedOutput = eval(expectedMatch[1]);
+    } catch {
+      expectedOutput = expectedMatch[1];
+    }
+  }
+  
+  if (testCase.toLowerCase().includes('throw') || testCase.toLowerCase().includes('error')) {
+    shouldThrow = true;
+  }
+  
+  return { input, expectedOutput, shouldThrow };
+}
+
+/**
+ * Generate comprehensive test code combining all test types
+ */
+function generateComprehensiveTestCode(
   code: string,
-  testCases: string[],
+  signature: FunctionSignature,
+  genericTests: GenericTestCase[],
+  llmTests: LLMTestCase[],
+  userTests: LLMTestCase[],
   functionFilePath: string
 ): string {
-  const functionName = extractFunctionName(code);
-
-  // Start with imports and the function under test
+  const functionName = signature.name;
+  
   let testCode = `
 import { describe, test, expect } from 'bun:test';
-import { ${functionName} } from './${functionFilePath.replace('.ts', '')}';
 
-// Append the function to the file directly for testing
+// Function under test
 ${code}
 
 describe('${functionName} tests', () => {
 `;
 
-  // Add test cases
-  testCases.forEach((testCase, index) => {
-    const testName = `Test case ${index + 1}`;
-    // Parse the test case string to extract input, expected output
-    const parsedTest = parseTestCase(testCase, functionName);
+  // Add generic tests
+  for (let i = 0; i < genericTests.length; i++) {
+    const test = genericTests[i];
+    testCode += generateGenericTestCode(test, functionName, i);
+  }
 
-    testCode += `
-  test('${testName}', () => {
-    ${parsedTest}
-  });
+  // Add LLM-enhanced tests
+  for (let i = 0; i < llmTests.length; i++) {
+    const test = llmTests[i];
+    testCode += generateLLMTestCode(test, functionName, i);
+  }
+
+  // Add user tests
+  for (let i = 0; i < userTests.length; i++) {
+    const test = userTests[i];
+    testCode += generateUserTestCode(test, functionName, i);
+  }
+
+  testCode += `});
 `;
-  });
-
-  // Close the describe block
-  testCode += '});\n';
 
   return testCode;
 }
 
 /**
- * Parse a test case string to generate test code
- *
- * @param testCase - Description of the test case
- * @param functionName - Name of the function to test
- * @returns Test code for this case
+ * Generate test code for generic test case
  */
-function parseTestCase(testCase: string, functionName: string): string {
-  // This is a very basic implementation
-  // In a real system, this would use more sophisticated parsing,
-  // possibly involving an LLM to understand the test description
-
-  // For simple cases like "input [1,2,3] should return 6"
-  const inputMatch = testCase.match(/input\s+(\[.*?\]|".*?"|'.*?'|\d+)/i);
-  const expectedMatch = testCase.match(
-    /(?:should\s+)?return\s+(\[.*?\]|".*?"|'.*?'|\d+|true|false)/i
-  );
-
-  if (inputMatch && expectedMatch) {
-    const input = inputMatch[1];
-    const expected = expectedMatch[1];
-    return `expect(${functionName}(${input})).toEqual(${expected});`;
+function generateGenericTestCode(test: GenericTestCase, functionName: string, index: number): string {
+  const testName = `${test.name}_${index}`;
+  const inputStr = JSON.stringify(test.input);
+  
+  if (test.shouldThrow) {
+    return `
+  test('${testName}', () => {
+    expect(() => ${functionName}(...${inputStr})).toThrow();
+  });
+`;
+  } else {
+    return `
+  test('${testName}', () => {
+    const result = ${functionName}(...${inputStr});
+    expect(result).toBeDefined();
+  });
+`;
   }
-
-  // For equality tests like "2 + 2 = 4"
-  const equalityMatch = testCase.match(/(\w+)\s*\+\s*(\w+)\s*=\s*(\w+)/);
-  if (equalityMatch) {
-    const a = equalityMatch[1];
-    const b = equalityMatch[2];
-    const expected = equalityMatch[3];
-    return `expect(${functionName}(${a}, ${b})).toEqual(${expected});`;
-  }
-
-  // For array tests
-  if (testCase.toLowerCase().includes('array') || testCase.includes('[]')) {
-    return `const result = ${functionName}([1, 2, 3, 4]);
-    expect(Array.isArray(result)).toBe(true);`;
-  }
-
-  // Default test case if we can't parse the description
-  return `// Unable to parse test case: "${testCase}"
-    const result = ${functionName}(42);
-    expect(result).toBeDefined();`;
 }
 
 /**
- * Generate basic test cases for a function
- *
- * @param code - The TypeScript function code
- * @returns Array of basic test case descriptions
+ * Generate test code for LLM test case
  */
-function generateBasicTests(code: string): string[] {
-  const functionName = extractFunctionName(code);
-
-  // Check if the function works with arrays
-  if (code.includes('Array') || code.includes('[]')) {
-    return [
-      `input [] should return expected value`,
-      `input [1, 2, 3] should return expected value`,
-      `input [0, 0, 0] should return expected value`,
-    ];
+function generateLLMTestCode(test: LLMTestCase, functionName: string, index: number): string {
+  const testName = `${test.name}_${index}`;
+  const inputStr = JSON.stringify(test.input);
+  
+  if (test.shouldThrow) {
+    return `
+  test('${testName}', () => {
+    expect(() => ${functionName}(...${inputStr})).toThrow();
+  });
+`;
+  } else if (test.expectedOutput !== undefined) {
+    return `
+  test('${testName}', () => {
+    const result = ${functionName}(...${inputStr});
+    expect(result).toEqual(${JSON.stringify(test.expectedOutput)});
+  });
+`;
+  } else {
+    return `
+  test('${testName}', () => {
+    const result = ${functionName}(...${inputStr});
+    expect(result).toBeDefined();
+  });
+`;
   }
-
-  // Check if the function works with strings
-  if (code.includes('string') || code.includes('String')) {
-    return [
-      `input "" should return expected value`,
-      `input "hello" should return expected value`,
-      `input "test123" should return expected value`,
-    ];
-  }
-
-  // Default tests
-  return [
-    `Basic functionality test`,
-    `Edge case test`,
-    `Typical use case test`,
-  ];
 }
 
 /**
- * Parse test results from Bun test output
- *
- * @param stdout - Standard output from test run
- * @param stderr - Standard error from test run
- * @param testCases - Array of test case descriptions
- * @returns Array of test results
+ * Generate test code for user test case
  */
-function parseTestResults(
+function generateUserTestCode(test: LLMTestCase, functionName: string, index: number): string {
+  return generateLLMTestCode(test, functionName, index); // Same structure
+}
+
+/**
+ * Parse simple test results from Bun output
+ */
+function parseSimpleTestResults(
   stdout: string,
   stderr: string,
-  testCases: string[]
+  allTests: (GenericTestCase | LLMTestCase)[]
 ): TestCaseResult[] {
-  // This is a very simple parser for Bun test output
-  // In a real system, you would want to use a more robust approach
-
   const results: TestCaseResult[] = [];
-
-  // Check if there were any errors
-  if (stderr && stderr.trim() !== '') {
-    return [
-      {
-        name: 'Test execution',
+  
+  // Check for actual syntax or compilation errors (not runtime errors)
+  const hasCompilationError = stderr.includes('SyntaxError') || 
+                             stderr.includes('Unexpected token') ||
+                             stderr.includes('Missing semicolon') ||
+                             (stderr.includes('error:') && !stderr.includes('expect(') && !stderr.includes('(pass)') && !stderr.includes('(fail)'));
+  
+  if (hasCompilationError && !stderr.includes('pass')) {
+    // All tests failed due to compilation error
+    for (let i = 0; i < allTests.length; i++) {
+      const test = allTests[i];
+      results.push({
+        name: test.name || `test_${i}`,
+        description: test.description || 'Generated test',
         passed: false,
-        message: stderr,
-      },
-    ];
+        status: 'error',
+        message: 'Compilation error in generated code',
+        executionTime: 0
+      });
+    }
+    return results;
   }
-
-  // Look for test results in the output
-  const testLines = stdout
-    .split('\n')
-    .filter(line => line.includes('PASS') || line.includes('FAIL'));
-
-  // Map each test case to a result
-  testCases.forEach((testCase, index) => {
-    const testLine = testLines[index];
-    const passed = Boolean(testLine && testLine.includes('PASS'));
-
+  
+  // Parse individual test results from stderr (where Bun outputs test results)
+  const lines = stderr.split('\n');
+  const testResultMap = new Map<string, { passed: boolean; message: string }>();
+  
+  // Look for test results in the format "(pass) describe > test_name" or "(fail) describe > test_name"
+  for (const line of lines) {
+    const passMatch = line.match(/\(pass\)\s+.*?>\s*(.+?)(?:\s+\[\d+(?:\.\d+)?ms\])?$/);
+    const failMatch = line.match(/\(fail\)\s+.*?>\s*(.+?)(?:\s+\[\d+(?:\.\d+)?ms\])?$/);
+    
+    if (passMatch) {
+      const testName = passMatch[1].trim();
+      testResultMap.set(testName, { passed: true, message: 'Test passed' });
+    } else if (failMatch) {
+      const testName = failMatch[1].trim();
+      testResultMap.set(testName, { passed: false, message: 'Test failed' });
+    }
+  }
+  
+  // Parse the summary line for overall counts (from stderr where Bun outputs)
+  const summaryMatch = stderr.match(/(\d+)\s+pass\s+(\d+)\s+fail/);
+  let totalPassCount = 0;
+  let totalFailCount = 0;
+  
+  if (summaryMatch) {
+    totalPassCount = parseInt(summaryMatch[1], 10);
+    totalFailCount = parseInt(summaryMatch[2], 10);
+  }
+  
+  // Create results for each test
+  for (let i = 0; i < allTests.length; i++) {
+    const test = allTests[i];
+    const testName = `${test.name}_${i}`;
+    
+    // Try to find specific test result
+    let testResult = testResultMap.get(testName);
+    
+    if (!testResult) {
+      // Fallback: assign passed/failed based on proportional distribution
+      const shouldPass = i < totalPassCount;
+      testResult = {
+        passed: shouldPass,
+        message: shouldPass ? 'Test passed' : 'Test failed'
+      };
+    }
+    
     results.push({
-      name: `Test case ${index + 1}`,
-      passed,
-      message: passed ? `Test passed: ${testCase}` : `Test failed: ${testCase}`,
-    });
-  });
-
-  // If we didn't find enough test results, add generic ones
-  while (results.length < testCases.length) {
-    const index = results.length;
-    results.push({
-      name: `Test case ${index + 1}`,
-      passed: false,
-      message: `No output for test: ${testCases[index]}`,
+      name: test.name || `test_${i}`,
+      description: test.description || 'Generated test',
+      passed: testResult.passed,
+      status: testResult.passed ? 'passed' : 'failed',
+      message: testResult.message,
+      executionTime: 1
     });
   }
-
+  
   return results;
+}
+
+
+
+/**
+ * Get default value for a type
+ */
+function getDefaultValueForType(type: string): any {
+  const normalizedType = type.toLowerCase();
+  
+  if (normalizedType.includes('string')) return 'test';
+  if (normalizedType.includes('number')) return 1;
+  if (normalizedType.includes('boolean')) return true;
+  if (normalizedType.includes('array') || normalizedType.includes('[]')) return [1];
+  if (normalizedType.includes('object')) return {};
+  
+  return null;
+}
+
+/**
+ * Create a test result when there are syntax errors in the generated code
+ */
+function createSyntaxErrorResult(
+  code: string,
+  errorMessage: string,
+  totalExecutionTime: number,
+  lintWarnings: any[]
+): TestResult {
+  const signature = extractFunctionSignature(code);
+  const genericTests = generateGenericTests(signature);
+  
+  // Create failed tests for all that would have been generated
+  const tests: TestCaseResult[] = genericTests.map((test, index) => ({
+    name: test.name || `test_${index}`,
+    description: test.description || 'Generated test',
+    passed: false,
+    status: 'error' as const,
+    message: `Syntax error in generated code: ${errorMessage}`,
+    executionTime: 0
+  }));
+  
+  return {
+    success: false,
+    tests,
+    label: `Test ${signature.name}`,
+    totalExecutionTime,
+    hasWarnings: lintWarnings.length > 0,
+    linterWarnings: lintWarnings
+  };
 }

@@ -42,7 +42,7 @@ async function getAvailableModels(): Promise<string[]> {
  * Generate a TypeScript function from a natural language prompt using LMStudio LLM
  *
  * @param prompt - Natural language description of the function to create
- * @param options - Optional configuration for the function generation
+ * @param options - Optional configuration for the function generation (ignored, uses defaults)
  * @returns The generated TypeScript code as a string
  */
 export async function generateFunction(
@@ -54,11 +54,11 @@ export async function generateFunction(
     const models = await getAvailableModels();
     const modelToUse = models[0];
 
-    // Build the system prompt based on options
-    const systemPrompt = buildSystemPrompt(options);
+    // Build the system prompt with standard high-quality options
+    const systemPrompt = buildSystemPrompt();
 
     // Build the user prompt
-    const userPrompt = buildUserPrompt(prompt, options);
+    const userPrompt = buildUserPrompt(prompt);
 
     // Call LMStudio API
     const response = await fetch(`${LMSTUDIO_BASE_URL}/chat/completions`, {
@@ -111,60 +111,54 @@ export async function generateFunction(
 }
 
 /**
- * Build system prompt based on options
+ * Build system prompt with standardized high-quality options
  */
-function buildSystemPrompt(options: FunctionRequest['options'] = {}): string {
-  const targetVersion = options.targetVersion || 'latest';
-  const functionalStyle = options.functionalStyle
-    ? 'functional programming'
-    : 'imperative';
-  const strictTypes = options.strictTypes
-    ? 'strict TypeScript types'
-    : 'flexible types';
-
+function buildSystemPrompt(): string {
   return `You are an expert TypeScript developer. Generate clean, well-structured TypeScript functions based on user requirements.
 
-Requirements:
-- Target version: ${targetVersion}
-- Programming style: ${functionalStyle}
-- Type strictness: ${strictTypes}
-- Include JSDoc comments: ${options.includeJSDoc ? 'yes' : 'no'}
-- Complexity level: ${options.complexityLevel || 3}/5
+STANDARDS (ALWAYS APPLY):
+- Target version: ESNext
+- Programming style: Functional programming (pure functions, immutability where possible)
+- Type strictness: Strict TypeScript types (no "any" unless absolutely necessary)
+- JSDoc comments: ALWAYS include comprehensive JSDoc with @param, @returns, and @throws
+- Complexity level: Low to medium (prefer readable, maintainable code)
+- Error handling: Include proper error handling with specific @throws annotations
 
-Guidelines:
+MANDATORY JSDoc FORMAT:
+/**
+ * Function description
+ * @param {type} paramName - Description
+ * @returns {type} Description
+ * @throws {ErrorType} When specific condition occurs
+ */
+
+GUIDELINES:
 1. Write only the function, no additional explanation
-2. Use proper TypeScript syntax and types
-3. Follow best practices for readability and performance
-4. Include proper error handling when appropriate
+2. Use proper TypeScript syntax and strict types
+3. Follow functional programming patterns where possible
+4. ALWAYS include @throws JSDoc for any error conditions
 5. Use descriptive parameter and variable names
-6. Return only the function code, no markdown formatting`;
+6. Include proper input validation and error handling
+7. Return only the function code, no markdown formatting
+8. Prefer immutable operations and pure functions
+9. Use const assertions and readonly types where appropriate`;
 }
 
 /**
  * Build user prompt for the LLM
  */
-function buildUserPrompt(
-  prompt: string,
-  options: FunctionRequest['options'] = {}
-): string {
-  let userPrompt = `Create a TypeScript function that: ${prompt}`;
+function buildUserPrompt(prompt: string): string {
+  return `Create a TypeScript function that: ${prompt}
 
-  if (options.includeJSDoc) {
-    userPrompt +=
-      '\n\nInclude comprehensive JSDoc comments with parameter descriptions and return type.';
-  }
+REQUIREMENTS:
+- Include comprehensive JSDoc comments with @param, @returns, and @throws annotations
+- Use functional programming patterns where possible (pure functions, immutability)
+- Use strict TypeScript types with no "any" types unless absolutely necessary
+- Include proper error handling and validation
+- Document all possible error conditions with @throws JSDoc comments
+- Follow ESNext standards and best practices
 
-  if (options.functionalStyle) {
-    userPrompt +=
-      '\n\nUse functional programming patterns where possible (pure functions, immutability, higher-order functions).';
-  }
-
-  if (options.strictTypes) {
-    userPrompt +=
-      '\n\nUse strict TypeScript types with no "any" types unless absolutely necessary.';
-  }
-
-  return userPrompt;
+Remember: ALWAYS include @throws JSDoc annotations for any error conditions the function might encounter.`;
 }
 
 /**

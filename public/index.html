@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>TypeScript Function Generator</h1>
-            <p class="subtitle">Generate, type-check, lint, and test TypeScript functions</p>
+            <p class="subtitle">Generate high-quality TypeScript functions with comprehensive testing</p>
         </header>
 
         <div class="card">
@@ -18,50 +18,6 @@
                 <div class="form-group">
                     <label for="prompt-input">Describe the function you need:</label>
                     <textarea id="prompt-input" placeholder="E.g., Write a function that takes an array of numbers and returns the sum of even numbers" required></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>Options:</label>
-                    <div class="tabs">
-                        <div class="tab active" data-tab="basic-options">Basic</div>
-                        <div class="tab" data-tab="advanced-options">Advanced</div>
-                    </div>
-                    
-                    <div id="basic-options" class="tab-content active">
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="include-jsdoc"> Include JSDoc comments
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="strict-types"> Use strict types
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div id="advanced-options" class="tab-content">
-                        <div class="form-group">
-                            <label for="target-version">Target Version:</label>
-                            <select id="target-version">
-                                <option value="latest">Latest</option>
-                                <option value="ES6">ES6</option>
-                                <option value="ES2022">ES2022</option>
-                                <option value="ES2020">ES2020</option>
-                                <option value="ES2018">ES2018</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="functional-style"> Use functional programming style
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label for="complexity-level">Complexity Level:</label>
-                            <input type="range" id="complexity-level" min="1" max="5" value="3">
-                            <span id="complexity-display">3</span>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="form-group">

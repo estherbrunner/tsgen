@@ -31,10 +31,10 @@ async function startServer() {
         try {
           const body = (await req.json()) as FunctionRequest;
 
-          // Generate TypeScript function from prompt
+          // Generate TypeScript function from prompt (always use high-quality defaults)
           const generatedCode = await generateFunction(
             body.prompt,
-            body.options
+            {} // Options are ignored, using standardized defaults
           );
 
           // Format and lint the generated code
@@ -47,6 +47,7 @@ async function startServer() {
           // Run tests on the formatted code
           const testResults = await runTests(
             formattedCode,
+            body.prompt,
             body.testCases || []
           );
 

@@ -42,7 +42,7 @@ async function testComponents() {
 
     // Test runner
     console.log('4. Testing test runner...');
-    const testResult = await runTests(formattedCode, [
+    const testResult = await runTests(formattedCode, 'sum all numbers in an array', [
       'input [1, 2, 3] should return 6',
       'input [] should return 0'
     ]);

@@ -6,7 +6,6 @@ const API_URL = 'http://localhost:3000/api/generate';
 // Main function to request TypeScript function generation
 export async function requestFunctionGeneration(
   prompt: string,
-  options: FunctionRequest['options'] = {},
   testCases: string[] = []
 ): Promise<FunctionResponse> {
   try {
@@ -17,7 +16,6 @@ export async function requestFunctionGeneration(
       },
       body: JSON.stringify({
         prompt,
-        options,
         testCases,
       } as FunctionRequest),
     });
@@ -108,7 +106,7 @@ export function displayResults(
       } else {
         results.lintResults.issues.forEach(issue => {
           const issueElement = document.createElement('li');
-          issueElement.className = 'error';
+          issueElement.className = issue.severity === 'error' ? 'error' : 'warning';
           issueElement.textContent = `${issue.message} (line ${issue.line})`;
           lintElement.appendChild(issueElement);
         });
@@ -124,18 +122,75 @@ export function displayResults(
       testContainer.className = 'test-container';
 
       const testHeader = document.createElement('h3');
-      testHeader.textContent = 'Test Results';
+      testHeader.textContent = results.testResults.label || 'Test Results';
       testContainer.appendChild(testHeader);
 
-      const testElement = document.createElement('ul');
+      // Test summary
+      const testSummary = document.createElement('div');
+      testSummary.className = 'test-summary';
+      
+      const passedTests = results.testResults.tests.filter(test => test.status === 'passed').length;
+      const totalTests = results.testResults.tests.length;
+      const hasWarnings = results.testResults.hasWarnings;
+      
+      let summaryText = `${passedTests}/${totalTests} tests passed`;
+      if (hasWarnings) {
+        summaryText += ' (with warnings)';
+      }
+      summaryText += ` in ${results.testResults.totalExecutionTime}ms`;
+      
+      testSummary.textContent = summaryText;
+      testSummary.className = `test-summary ${results.testResults.success ? 'success' : 'error'}`;
+      testContainer.appendChild(testSummary);
+
+      // Warning banner for linter warnings
+      if (hasWarnings && results.testResults.linterWarnings) {
+        const warningBanner = document.createElement('div');
+        warningBanner.className = 'warning-banner';
+        warningBanner.innerHTML = `
+          <strong>⚠️ Code Quality Warnings:</strong>
+          <ul>
+            ${results.testResults.linterWarnings.map(warning => 
+              `<li>${warning.message} (line ${warning.line})</li>`
+            ).join('')}
+          </ul>
+        `;
+        testContainer.appendChild(warningBanner);
+      }
+
+      // Individual test results
+      const testList = document.createElement('ul');
+      testList.className = 'test-list';
+      
       results.testResults.tests.forEach(test => {
         const testItem = document.createElement('li');
-        testItem.className = test.passed ? 'success' : 'error';
-        testItem.textContent = `${test.name}: ${test.passed ? 'Passed' : 'Failed'} - ${test.message}`;
-        testElement.appendChild(testItem);
+        testItem.className = `test-item ${test.status}`;
+        
+        const testName = document.createElement('span');
+        testName.className = 'test-name';
+        testName.textContent = test.name;
+        
+        const testStatus = document.createElement('span');
+        testStatus.className = `test-status ${test.status}`;
+        testStatus.textContent = test.status.toUpperCase();
+        
+        const testMessage = document.createElement('span');
+        testMessage.className = 'test-message';
+        testMessage.textContent = test.description;
+        
+        const testTime = document.createElement('span');
+        testTime.className = 'test-time';
+        testTime.textContent = `${test.executionTime}ms`;
+        
+        testItem.appendChild(testName);
+        testItem.appendChild(testStatus);
+        testItem.appendChild(testMessage);
+        testItem.appendChild(testTime);
+        
+        testList.appendChild(testItem);
       });
-      testContainer.appendChild(testElement);
-
+      
+      testContainer.appendChild(testList);
       container.appendChild(testContainer);
     }
   } else if (results.error) {
@@ -152,40 +207,6 @@ export function displayResults(
 
 // Initialize event listeners when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  // Tab switching functionality
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabId = tab.getAttribute('data-tab');
-      if (!tabId) return;
-
-      // Update active tab
-      document
-        .querySelectorAll('.tab')
-        .forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-
-      // Update active content
-      document
-        .querySelectorAll('.tab-content')
-        .forEach(content => content.classList.remove('active'));
-      const targetContent = document.getElementById(tabId);
-      if (targetContent) {
-        targetContent.classList.add('active');
-      }
-    });
-  });
-
-  // Update complexity level display
-  const complexityInput = document.getElementById(
-    'complexity-level'
-  ) as HTMLInputElement;
-  const complexityDisplay = document.getElementById('complexity-display');
-  if (complexityInput && complexityDisplay) {
-    complexityInput.addEventListener('input', () => {
-      complexityDisplay.textContent = complexityInput.value;
-    });
-  }
-
   // Form submission
   const form = document.getElementById(
     'function-generator-form'
@@ -205,63 +226,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const promptInput = document.getElementById(
         'prompt-input'
       ) as HTMLTextAreaElement;
-      const includeJSDocInput = document.getElementById(
-        'include-jsdoc'
-      ) as HTMLInputElement;
-      const strictTypesInput = document.getElementById(
-        'strict-types'
-      ) as HTMLInputElement;
-      const functionalStyleInput = document.getElementById(
-        'functional-style'
-      ) as HTMLInputElement;
-      const targetVersionInput = document.getElementById(
-        'target-version'
-      ) as HTMLSelectElement;
-      const complexityLevelInput = document.getElementById(
-        'complexity-level'
-      ) as HTMLInputElement;
       const testCasesInput = document.getElementById(
         'test-cases'
       ) as HTMLTextAreaElement;
 
       const prompt = promptInput?.value.trim() || '';
-      const includeJSDoc = includeJSDocInput?.checked || false;
-      const strictTypes = strictTypesInput?.checked || false;
-      const functionalStyle = functionalStyleInput?.checked || false;
-      const targetVersion = (targetVersionInput?.value || 'latest') as
-        | 'latest'
-        | 'ES5'
-        | 'ES6'
-        | 'ES2016'
-        | 'ES2017'
-        | 'ES2018'
-        | 'ES2019'
-        | 'ES2020'
-        | 'ES2021'
-        | 'ES2022';
-      const complexityLevel = parseInt(complexityLevelInput?.value || '3') as
-        | 1
-        | 2
-        | 3
-        | 4
-        | 5;
       const testCasesText = testCasesInput?.value.trim() || '';
 
-      if (!prompt) return;
+      if (!prompt) {
+        alert('Please enter a function description');
+        return;
+      }
 
       // Parse test cases (one per line)
       const testCases = testCasesText
         ? testCasesText.split('\n').filter(line => line.trim())
         : [];
-
-      // Create options object
-      const options = {
-        includeJSDoc,
-        strictTypes,
-        functionalStyle,
-        targetVersion,
-        complexityLevel,
-      };
 
       // Disable button and show loading state
       generateButton.disabled = true;
@@ -269,18 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Display a waiting message
       resultsContainer.innerHTML = `
-        <div class="status">
+        <div class="status loading">
+          <div class="loading-spinner"></div>
           Processing your request... This may take a few seconds.
         </div>
       `;
 
       try {
         // Call the API
-        const results = await requestFunctionGeneration(
-          prompt,
-          options,
-          testCases
-        );
+        const results = await requestFunctionGeneration(prompt, testCases);
 
         // Display results
         displayResults(results, resultsContainer);

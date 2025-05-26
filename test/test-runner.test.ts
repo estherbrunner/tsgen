@@ -11,7 +11,7 @@ describe('Test Runner', () => {
       'input 1, 1 should return 2'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'add two numbers', testCases);
     
     expect(result).toBeDefined();
     expect(result.success).toBeDefined();
@@ -24,7 +24,7 @@ describe('Test Runner', () => {
   return x * y;
 }`;
     
-    const result = await runTests(functionCode, []);
+    const result = await runTests(functionCode, 'multiply two numbers', []);
     
     expect(result).toBeDefined();
     expect(result.success).toBeDefined();
@@ -42,7 +42,7 @@ describe('Test Runner', () => {
       'input 10, 4 should return 5' // This should fail (expects 5, gets 6)
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'subtract two numbers', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -59,7 +59,7 @@ describe('Test Runner', () => {
 }`;
     const testCases = ['input should return 42'];
     
-    const result = await runTests(brokenCode, testCases);
+    const result = await runTests(brokenCode, 'broken function', testCases);
     
     expect(result).toBeDefined();
     expect(result.success).toBe(false);
@@ -79,7 +79,7 @@ describe('Test Runner', () => {
       'input [] should return 0'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'process array of numbers', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -95,7 +95,7 @@ describe('Test Runner', () => {
       'input "Alice" should return "Hello, Alice!"'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'greet a person', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -112,7 +112,7 @@ describe('Test Runner', () => {
       'input 0 should return true'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'check if number is even', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -128,7 +128,7 @@ describe('Test Runner', () => {
       'input 3, 4 should return 12'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'calculate area', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -147,7 +147,7 @@ describe('Test Runner', () => {
       'input 8, 0 should throw error'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'divide two numbers', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -163,7 +163,7 @@ describe('Test Runner', () => {
       'input {name: "Jane", age: 25}, "age" should return 25'
     ];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'get object property', testCases);
     
     expect(result).toBeDefined();
     expect(Array.isArray(result.tests)).toBe(true);
@@ -176,7 +176,7 @@ describe('Test Runner', () => {
 }`;
     const testCases = ['input should return 42'];
     
-    const result = await runTests(functionCode, testCases);
+    const result = await runTests(functionCode, 'broken function with undefined variable', testCases);
     
     expect(result).toBeDefined();
     expect(result.success).toBe(false);
