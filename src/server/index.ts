@@ -1,12 +1,10 @@
-import { serve } from 'bun';
-import type { Server } from 'bun';
+import { type Server, file, serve } from 'bun';
 import { generateFunction } from './function-generator';
 import { typeCheck } from './type-checker';
 import { runTests } from './test-runner';
-import { lint } from './linter';
+import { formatAndLint } from './linter';
 import { FunctionRequest, FunctionResponse } from '../shared/types';
 import { join } from 'path';
-import { file } from 'bun';
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = join(process.cwd(), 'public');
@@ -15,84 +13,96 @@ async function startServer() {
   const server: Server = serve({
     port: PORT,
     async fetch(req) {
-    const url = new URL(req.url);
-    
-    // Handle CORS preflight requests
-    if (req.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
-    
-    // API endpoint to generate TypeScript functions
-    if (url.pathname === '/api/generate' && req.method === 'POST') {
-      try {
-        const body = await req.json() as FunctionRequest;
-        
-        // Generate TypeScript function from prompt
-        const generatedCode = await generateFunction(body.prompt, body.options);
-        
-        // Type check the generated code
-        const typeCheckResults = await typeCheck(generatedCode);
-        
-        // Lint the generated code
-        const lintResults = await lint(generatedCode);
-        
-        // Run tests on the generated code
-        const testResults = await runTests(generatedCode, body.testCases || []);
-        
-        const response: FunctionResponse = {
-          success: true,
-          code: generatedCode,
-          typeCheckResults,
-          lintResults,
-          testResults,
-        };
-        
-        return new Response(JSON.stringify(response), {
+      const url = new URL(req.url);
+
+      // Handle CORS preflight requests
+      if (req.method === 'OPTIONS') {
+        return new Response(null, {
           headers: {
-            'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
           },
         });
-      } catch (error) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }),
-          {
-            status: 400,
+      }
+
+      // API endpoint to generate TypeScript functions
+      if (url.pathname === '/api/generate' && req.method === 'POST') {
+        try {
+          const body = (await req.json()) as FunctionRequest;
+
+          // Generate TypeScript function from prompt
+          const generatedCode = await generateFunction(
+            body.prompt,
+            body.options
+          );
+
+          // Format and lint the generated code
+          const { formattedCode, lintResult } =
+            await formatAndLint(generatedCode);
+
+          // Type check the formatted code
+          const typeCheckResults = await typeCheck(formattedCode);
+
+          // Run tests on the formatted code
+          const testResults = await runTests(
+            formattedCode,
+            body.testCases || []
+          );
+
+          const response: FunctionResponse = {
+            success: true,
+            code: formattedCode,
+            typeCheckResults,
+            lintResults: lintResult,
+            testResults,
+          };
+
+          return new Response(JSON.stringify(response), {
             headers: {
               'Content-Type': 'application/json',
               'Access-Control-Allow-Origin': '*',
             },
-          }
-        );
-      }
-    }
-    
-    // Serve static files from the public directory
-    if (url.pathname === '/' || url.pathname === '/index.html') {
-      try {
-        const indexFile = file(join(PUBLIC_DIR, 'index.html'));
-        if (await indexFile.exists()) {
-          return new Response(await indexFile.arrayBuffer(), {
-            headers: {
-              'Content-Type': 'text/html',
-            },
           });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const isLLMError = errorMessage.includes('LMStudio') || 
+                            errorMessage.includes('Cannot connect') ||
+                            errorMessage.includes('No models available');
+          
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: errorMessage,
+            }),
+            {
+              status: isLLMError ? 503 : 400, // Service unavailable for LLM issues
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+              },
+            }
+          );
         }
-      } catch (error) {
-        console.error('Error serving index.html:', error);
       }
-      
-      // Fallback HTML if index.html doesn't exist
-      const fallbackHTML = `
+
+      // Serve static files from the public directory
+      if (url.pathname === '/' || url.pathname === '/index.html') {
+        try {
+          const indexFile = file(join(PUBLIC_DIR, 'index.html'));
+          if (await indexFile.exists()) {
+            return new Response(await indexFile.arrayBuffer(), {
+              headers: {
+                'Content-Type': 'text/html',
+              },
+            });
+          }
+        } catch (error) {
+          console.error('Error serving index.html:', error);
+        }
+
+        // Fallback HTML if index.html doesn't exist
+        const fallbackHTML = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -119,11 +129,11 @@ async function startServer() {
         async function generateFunction() {
             const prompt = document.getElementById('prompt').value;
             if (!prompt) return;
-            
+
             const result = document.getElementById('result');
             result.style.display = 'block';
             result.innerHTML = 'Generating...';
-            
+
             try {
                 const response = await fetch('/api/generate', {
                     method: 'POST',
@@ -131,7 +141,7 @@ async function startServer() {
                     body: JSON.stringify({ prompt })
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     result.innerHTML = '<h3>Generated Function:</h3><pre>' + data.code + '</pre>';
                 } else {
@@ -144,45 +154,46 @@ async function startServer() {
     </script>
 </body>
 </html>`;
-      
-      return new Response(fallbackHTML, {
-        headers: {
-          'Content-Type': 'text/html',
-        },
-      });
-    }
-    
 
-    // Handle other static files from public directory
-    if (url.pathname.startsWith('/')) {
-      try {
-        const filePath = join(PUBLIC_DIR, url.pathname);
-        const staticFile = file(filePath);
-        
-        if (await staticFile.exists()) {
-          let contentType = 'application/octet-stream';
-          
-          if (filePath.endsWith('.html')) contentType = 'text/html';
-          else if (filePath.endsWith('.css')) contentType = 'text/css';
-          else if (filePath.endsWith('.js')) contentType = 'text/javascript';
-          else if (filePath.endsWith('.json')) contentType = 'application/json';
-          else if (filePath.endsWith('.png')) contentType = 'image/png';
-          else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) contentType = 'image/jpeg';
-          else if (filePath.endsWith('.svg')) contentType = 'image/svg+xml';
-          
-          return new Response(await staticFile.arrayBuffer(), {
-            headers: {
-              'Content-Type': contentType,
-            },
-          });
-        }
-      } catch (error) {
-        console.error('Error serving static file:', error);
+        return new Response(fallbackHTML, {
+          headers: {
+            'Content-Type': 'text/html',
+          },
+        });
       }
-    }
-    
-    // For any other route, return 404
-    return new Response('Not Found', { status: 404 });
+
+      // Handle other static files from public directory
+      if (url.pathname.startsWith('/')) {
+        try {
+          const filePath = join(PUBLIC_DIR, url.pathname);
+          const staticFile = file(filePath);
+
+          if (await staticFile.exists()) {
+            let contentType = 'application/octet-stream';
+
+            if (filePath.endsWith('.html')) contentType = 'text/html';
+            else if (filePath.endsWith('.css')) contentType = 'text/css';
+            else if (filePath.endsWith('.js')) contentType = 'text/javascript';
+            else if (filePath.endsWith('.json'))
+              contentType = 'application/json';
+            else if (filePath.endsWith('.png')) contentType = 'image/png';
+            else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg'))
+              contentType = 'image/jpeg';
+            else if (filePath.endsWith('.svg')) contentType = 'image/svg+xml';
+
+            return new Response(await staticFile.arrayBuffer(), {
+              headers: {
+                'Content-Type': contentType,
+              },
+            });
+          }
+        } catch (error) {
+          console.error('Error serving static file:', error);
+        }
+      }
+
+      // For any other route, return 404
+      return new Response('Not Found', { status: 404 });
     },
   });
 

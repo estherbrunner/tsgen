@@ -26,7 +26,8 @@
     "@typescript-eslint/parser": "latest",
     "concurrently": "^9.1.2",
     "eslint": "latest",
-    "lightningcss-cli": "^1.30.1"
+    "lightningcss-cli": "^1.30.1",
+    "prettier": "^3.5.3"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"

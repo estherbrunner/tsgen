@@ -1,7 +1,7 @@
 // Test script to verify server functionality
 import { generateFunction } from './src/server/function-generator';
 import { typeCheck } from './src/server/type-checker';
-import { lint } from './src/server/linter';
+import { formatAndLint } from './src/server/linter';
 import { runTests } from './src/server/test-runner';
 
 async function testComponents() {
@@ -28,19 +28,21 @@ async function testComponents() {
     }
     console.log();
 
-    // Test linting
-    console.log('3. Testing linter...');
-    const lintResult = await lint(code);
-    console.log(`✅ Lint check: ${lintResult.success ? 'PASSED' : 'FAILED'}`);
+    // Test formatting and linting
+    console.log('3. Testing formatting and linting...');
+    const { formattedCode, lintResult } = await formatAndLint(code);
+    console.log(`✅ Format & Lint check: ${lintResult.success ? 'PASSED' : 'FAILED'}`);
     console.log(`Issues found: ${lintResult.issues.length}`);
     lintResult.issues.forEach(issue => {
       console.log(`  - ${issue.severity}: ${issue.message} (line ${issue.line})`);
     });
+    console.log('Formatted code:');
+    console.log(formattedCode);
     console.log();
 
     // Test runner
     console.log('4. Testing test runner...');
-    const testResult = await runTests(code, [
+    const testResult = await runTests(formattedCode, [
       'input [1, 2, 3] should return 6',
       'input [] should return 0'
     ]);

@@ -4,10 +4,10 @@
  */
 
 import { FunctionRequest } from '../shared/types';
+import * as prettier from 'prettier';
 
 // LMStudio API configuration
 const LMSTUDIO_BASE_URL = 'http://localhost:1234/v1';
-const DEFAULT_MODEL = 'gpt-3.5-turbo'; // Will be updated with actual available model
 
 /**
  * Get available models from LMStudio
@@ -16,19 +16,31 @@ async function getAvailableModels(): Promise<string[]> {
   try {
     const response = await fetch(`${LMSTUDIO_BASE_URL}/models`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch models: ${response.status}`);
+      throw new Error(
+        `LMStudio server returned ${response.status}: ${response.statusText}. Please ensure LMStudio is running and accessible at ${LMSTUDIO_BASE_URL}`
+      );
     }
     const data = await response.json();
-    return data.data?.map((model: any) => model.id) || [];
+    const models = data.data?.map((model: any) => model.id) || [];
+    if (models.length === 0) {
+      throw new Error(
+        'No models available in LMStudio. Please load a model in LMStudio first.'
+      );
+    }
+    return models;
   } catch (error) {
-    console.error('Error fetching models from LMStudio:', error);
-    return [];
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Cannot connect to LMStudio at ${LMSTUDIO_BASE_URL}. Please ensure LMStudio is running and accessible.`
+      );
+    }
+    throw error;
   }
 }
 
 /**
  * Generate a TypeScript function from a natural language prompt using LMStudio LLM
- * 
+ *
  * @param prompt - Natural language description of the function to create
  * @param options - Optional configuration for the function generation
  * @returns The generated TypeScript code as a string
@@ -38,16 +50,16 @@ export async function generateFunction(
   options: FunctionRequest['options'] = {}
 ): Promise<string> {
   try {
-    // Get available models to use the first one available
+    // Get available models - this will throw if LMStudio is not available
     const models = await getAvailableModels();
-    const modelToUse = models.length > 0 ? models[0] : DEFAULT_MODEL;
-    
+    const modelToUse = models[0];
+
     // Build the system prompt based on options
     const systemPrompt = buildSystemPrompt(options);
-    
+
     // Build the user prompt
     const userPrompt = buildUserPrompt(prompt, options);
-    
+
     // Call LMStudio API
     const response = await fetch(`${LMSTUDIO_BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -59,39 +71,42 @@ export async function generateFunction(
         messages: [
           {
             role: 'system',
-            content: systemPrompt
+            content: systemPrompt,
           },
           {
             role: 'user',
-            content: userPrompt
-          }
+            content: userPrompt,
+          },
         ],
         temperature: 0.3,
         max_tokens: 1000,
-        stream: false
-      })
+        stream: false,
+      }),
     });
-    
+
     if (!response.ok) {
-      throw new Error(`LMStudio API error: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `LMStudio API error: ${response.status} ${response.statusText}`
+      );
     }
-    
+
     const data = await response.json();
     const generatedCode = data.choices?.[0]?.message?.content;
-    
+
     if (!generatedCode) {
       throw new Error('No code generated from LLM response');
     }
-    
+
     // Clean up the generated code
-    return cleanGeneratedCode(generatedCode);
-    
+    const cleanedCode = cleanGeneratedCode(generatedCode);
+
+    // Format the code with Prettier
+    return await formatGeneratedCode(cleanedCode);
   } catch (error) {
-    console.error('Error generating function with LLM:', error);
-    
-    // Fallback to simple pattern-based generation
-    console.log('Falling back to pattern-based generation...');
-    return generateFallbackCode(prompt, options);
+    if (error instanceof Error) {
+      throw error; // Re-throw with original message for better error reporting
+    }
+    throw new Error(`Error generating function with LLM: ${error}`);
   }
 }
 
@@ -100,9 +115,13 @@ export async function generateFunction(
  */
 function buildSystemPrompt(options: FunctionRequest['options'] = {}): string {
   const targetVersion = options.targetVersion || 'latest';
-  const functionalStyle = options.functionalStyle ? 'functional programming' : 'imperative';
-  const strictTypes = options.strictTypes ? 'strict TypeScript types' : 'flexible types';
-  
+  const functionalStyle = options.functionalStyle
+    ? 'functional programming'
+    : 'imperative';
+  const strictTypes = options.strictTypes
+    ? 'strict TypeScript types'
+    : 'flexible types';
+
   return `You are an expert TypeScript developer. Generate clean, well-structured TypeScript functions based on user requirements.
 
 Requirements:
@@ -124,21 +143,27 @@ Guidelines:
 /**
  * Build user prompt for the LLM
  */
-function buildUserPrompt(prompt: string, options: FunctionRequest['options'] = {}): string {
+function buildUserPrompt(
+  prompt: string,
+  options: FunctionRequest['options'] = {}
+): string {
   let userPrompt = `Create a TypeScript function that: ${prompt}`;
-  
+
   if (options.includeJSDoc) {
-    userPrompt += '\n\nInclude comprehensive JSDoc comments with parameter descriptions and return type.';
+    userPrompt +=
+      '\n\nInclude comprehensive JSDoc comments with parameter descriptions and return type.';
   }
-  
+
   if (options.functionalStyle) {
-    userPrompt += '\n\nUse functional programming patterns where possible (pure functions, immutability, higher-order functions).';
+    userPrompt +=
+      '\n\nUse functional programming patterns where possible (pure functions, immutability, higher-order functions).';
   }
-  
+
   if (options.strictTypes) {
-    userPrompt += '\n\nUse strict TypeScript types with no "any" types unless absolutely necessary.';
+    userPrompt +=
+      '\n\nUse strict TypeScript types with no "any" types unless absolutely necessary.';
   }
-  
+
   return userPrompt;
 }
 
@@ -147,159 +172,164 @@ function buildUserPrompt(prompt: string, options: FunctionRequest['options'] = {
  */
 function cleanGeneratedCode(code: string): string {
   // Remove markdown code blocks
-  code = code.replace(/```(?:typescript|ts|javascript|js)?\s*\n?/g, '').replace(/```\s*$/g, '');
-  
+  code = code
+    .replace(/```(?:typescript|ts|javascript|js)?\s*\n?/g, '')
+    .replace(/```\s*$/g, '');
+
   // Split into lines for processing
   const lines = code.split('\n');
-  
+
   // Find the start of actual code (JSDoc or function)
   let startIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line.startsWith('/**') || 
-        line.startsWith('function ') || 
-        line.match(/^(export\s+)?(const|let)\s+\w+/) ||
-        line.startsWith('export function')) {
+    if (
+      line.startsWith('/**') ||
+      line.startsWith('function ') ||
+      line.match(/^(export\s+)?(async\s+)?(const|let|var)\s+\w+/) ||
+      line.startsWith('export function') ||
+      line.startsWith('interface ') ||
+      line.startsWith('type ')
+    ) {
       startIndex = i;
       break;
     }
   }
-  
+
   if (startIndex === -1) {
     // No clear function start found, return cleaned original
     return code.trim();
   }
-  
+
   // Extract from start to end of function
   const codeLines = lines.slice(startIndex);
-  
-  // Find the end of the function
+
+  // Find the end of the function with improved logic
   let braceCount = 0;
+  let parenCount = 0;
   let inFunction = false;
+  let functionType = '';
   let endIndex = codeLines.length;
-  
+
   for (let i = 0; i < codeLines.length; i++) {
-    const line = codeLines[i];
-    
-    if (line.includes('function ') || line.match(/(const|let)\s+\w+.*=>/)) {
-      inFunction = true;
+    const line = codeLines[i].trim();
+
+    // Detect function type
+    if (!inFunction) {
+      if (line.includes('function ') || line.startsWith('export function')) {
+        inFunction = true;
+        functionType = 'regular';
+      } else if (line.match(/(const|let)\s+\w+.*=>/)) {
+        inFunction = true;
+        functionType = 'arrow';
+      } else if (line.match(/(const|let)\s+\w+.*=\s*function/)) {
+        inFunction = true;
+        functionType = 'expression';
+      }
     }
-    
+
     if (inFunction) {
+      // Count braces and parentheses
       for (const char of line) {
         if (char === '{') braceCount++;
         if (char === '}') braceCount--;
+        if (char === '(') parenCount++;
+        if (char === ')') parenCount--;
       }
-      
-      // For arrow functions, check for semicolon ending
-      if (line.includes('=>') && line.trim().endsWith(';')) {
+
+      // For arrow functions with single expression
+      if (
+        functionType === 'arrow' &&
+        line.includes('=>') &&
+        !line.includes('{')
+      ) {
+        // Single expression arrow function
+        if (line.trim().endsWith(';')) {
+          endIndex = i + 1;
+          break;
+        }
+      }
+
+      // For functions with blocks, end when braces are balanced
+      if (braceCount === 0 && line.includes('}') && functionType !== 'arrow') {
         endIndex = i + 1;
         break;
       }
-      
-      // For regular functions, check for closing brace
-      if (braceCount === 0 && line.includes('}')) {
+
+      // For arrow functions with blocks
+      if (functionType === 'arrow' && braceCount === 0 && line.includes('}')) {
+        // Check if this line also ends with semicolon or is standalone
         endIndex = i + 1;
+        if (i + 1 < codeLines.length && codeLines[i + 1].trim() === ';') {
+          endIndex = i + 2;
+        }
         break;
       }
     }
-  }
-  
-  // Extract the function code
-  const functionCode = codeLines.slice(0, endIndex).join('\n').trim();
-  
-  // Final cleanup - remove any trailing explanatory text
-  const cleanedLines = functionCode.split('\n');
-  const finalLines = [];
-  
-  for (const line of cleanedLines) {
-    finalLines.push(line);
-    // Stop if we hit the end of a function and there's explanatory text after
-    if (line.trim() === '}' && finalLines.length > 1) {
+
+    // Stop at obvious non-code lines
+    if (
+      inFunction &&
+      line.startsWith('//') &&
+      (line.toLowerCase().includes('usage') ||
+        line.toLowerCase().includes('example') ||
+        line.toLowerCase().includes('note:'))
+    ) {
       break;
     }
   }
-  
-  return finalLines.join('\n').trim();
+
+  // Extract the function code
+  const functionCode = codeLines.slice(0, endIndex).join('\n').trim();
+
+  return functionCode;
 }
 
 /**
- * Fallback function generation when LLM is not available
+ * Format generated code using Prettier
  */
-function generateFallbackCode(prompt: string, options: FunctionRequest['options'] = {}): string {
-  const functionName = extractFunctionName(prompt);
-  
-  // Include JSDoc if specified
-  const jsDoc = options.includeJSDoc
-    ? `/**
- * ${prompt}
- * 
- * @param data - Input data to process
- * @returns The processed result
- */
-`
-    : '';
-  
-  // Create a simple implementation based on the prompt
-  if (prompt.includes('sum') || prompt.includes('add')) {
-    return `${jsDoc}function ${functionName}(numbers: number[]): number {
-  return numbers.reduce((sum, num) => sum + num, 0);
-}`;
-  } else if (prompt.includes('filter') || prompt.includes('even')) {
-    return `${jsDoc}function ${functionName}(numbers: number[]): number[] {
-  return numbers.filter(num => num % 2 === 0);
-}`;
-  } else if (prompt.includes('sort')) {
-    return `${jsDoc}function ${functionName}(items: any[]): any[] {
-  return [...items].sort();
-}`;
-  } else if (prompt.includes('multiply') || prompt.includes('product')) {
-    return `${jsDoc}function ${functionName}(a: number, b: number): number {
-  return a * b;
-}`;
-  } else if (prompt.includes('factorial')) {
-    return `${jsDoc}function ${functionName}(n: number): number {
-  if (n <= 1) return 1;
-  return n * ${functionName}(n - 1);
-}`;
-  } else {
-    // Generic placeholder function
-    return `${jsDoc}function ${functionName}(data: any): any {
-  // TODO: Implement function based on: ${prompt}
-  return data;
-}`;
-  }
-}
+async function formatGeneratedCode(code: string): Promise<string> {
+  try {
+    // Basic validation - check for severely malformed code
+    const openBraces = (code.match(/\{/g) || []).length;
+    const closeBraces = (code.match(/\}/g) || []).length;
+    const openParens = (code.match(/\(/g) || []).length;
+    const closeParens = (code.match(/\)/g) || []).length;
 
-/**
- * Extract a function name from the prompt
- */
-function extractFunctionName(prompt: string): string {
-  // Remove common prefixes
-  let cleanedPrompt = prompt
-    .replace(/^(write|create|implement|make|build)\s*a?\s*function\s*(to|that)\s*/i, '')
-    .replace(/^(write|create|implement|make|build)\s*a?\s*function\s*/i, '');
-  
-  // Extract the main verb/action
-  const verbMatch = cleanedPrompt.match(/^([a-z]+)/i);
-  if (verbMatch) {
-    const verb = verbMatch[1].toLowerCase();
-    
-    // Handle special cases
-    if (verb === 'calculate' || verb === 'compute') {
-      const subjectMatch = cleanedPrompt.match(/calculate\s+(?:the\s+)?(\w+)/i);
-      return subjectMatch ? subjectMatch[1].toLowerCase() : 'calculate';
+    // If severely malformed, return as-is (Prettier will likely fail anyway)
+    if (
+      Math.abs(openBraces - closeBraces) > 2 ||
+      Math.abs(openParens - closeParens) > 2
+    ) {
+      console.warn(
+        'Generated code appears severely malformed, skipping Prettier formatting'
+      );
+      return code;
     }
-    
-    return verb;
+
+    // Get Prettier configuration
+    const config = (await prettier.resolveConfig(process.cwd())) || {};
+
+    // Set TypeScript-specific options
+    const options = {
+      ...config,
+      parser: 'typescript',
+      semi: true,
+      singleQuote: true,
+      tabWidth: 2,
+      trailingComma: 'es5' as const,
+      printWidth: 80,
+    };
+
+    // Format the code with Prettier
+    const formatted = await prettier.format(code, options);
+    return formatted.trim();
+  } catch (error) {
+    // If Prettier fails, return the original code
+    console.warn(
+      'Prettier formatting failed for generated code:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return code;
   }
-  
-  // Look for specific keywords
-  if (cleanedPrompt.includes('factorial')) return 'factorial';
-  if (cleanedPrompt.includes('fibonacci')) return 'fibonacci';
-  if (cleanedPrompt.includes('palindrome')) return 'isPalindrome';
-  if (cleanedPrompt.includes('prime')) return 'isPrime';
-  
-  // Fallback
-  return 'processData';
 }
