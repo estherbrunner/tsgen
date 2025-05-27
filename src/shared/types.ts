@@ -6,37 +6,6 @@
 export interface FunctionRequest {
   // Natural language prompt describing the function to generate
   prompt: string;
-
-  // Optional configuration for function generation
-  options?: {
-    // Target TypeScript/ECMAScript version
-    targetVersion?:
-      | 'ES5'
-      | 'ES6'
-      | 'ES2016'
-      | 'ES2017'
-      | 'ES2018'
-      | 'ES2019'
-      | 'ES2020'
-      | 'ES2021'
-      | 'ES2022'
-      | 'latest';
-
-    // Whether to use functional programming style where possible
-    functionalStyle?: boolean;
-
-    // Whether to include JSDoc comments
-    includeJSDoc?: boolean;
-
-    // Whether to include detailed type definitions
-    strictTypes?: boolean;
-
-    // Maximum complexity allowed (higher numbers allow more complex solutions)
-    complexityLevel?: 1 | 2 | 3 | 4 | 5;
-  };
-
-  // Optional test cases to validate the generated function
-  testCases?: string[];
 }
 
 // Response from the function generation API

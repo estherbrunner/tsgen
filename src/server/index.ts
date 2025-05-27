@@ -1,10 +1,12 @@
 import { type Server, file, serve } from 'bun';
+import { codeToHtml } from 'shiki';
+import { join } from 'path';
+
 import { generateFunction } from './function-generator';
 import { typeCheck } from './type-checker';
+import { lint } from './linter';
 import { runTests } from './test-runner';
-import { formatAndLint } from './linter';
 import { FunctionRequest, FunctionResponse } from '../shared/types';
-import { join } from 'path';
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = join(process.cwd(), 'public');
@@ -32,28 +34,26 @@ async function startServer() {
           const body = (await req.json()) as FunctionRequest;
 
           // Generate TypeScript function from prompt (always use high-quality defaults)
-          const generatedCode = await generateFunction(
-            body.prompt,
-            {} // Options are ignored, using standardized defaults
-          );
+          const generatedCode = await generateFunction(body.prompt);
 
           // Format and lint the generated code
-          const { formattedCode, lintResult } =
-            await formatAndLint(generatedCode);
+          const lintResult = await lint(generatedCode);
 
           // Type check the formatted code
-          const typeCheckResults = await typeCheck(formattedCode);
+          const typeCheckResults = await typeCheck(generatedCode);
 
           // Run tests on the formatted code
-          const testResults = await runTests(
-            formattedCode,
-            body.prompt,
-            body.testCases || []
-          );
+          const testResults = await runTests(generatedCode, body.prompt);
+
+          // Apply syntax highlighting
+          const highlightedCode = await codeToHtml(generatedCode, {
+            lang: 'typescript',
+            theme: 'monokai',
+          });
 
           const response: FunctionResponse = {
             success: true,
-            code: formattedCode,
+            code: highlightedCode,
             typeCheckResults,
             lintResults: lintResult,
             testResults,
@@ -66,11 +66,13 @@ async function startServer() {
             },
           });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const isLLMError = errorMessage.includes('LMStudio') || 
-                            errorMessage.includes('Cannot connect') ||
-                            errorMessage.includes('No models available');
-          
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          const isLLMError =
+            errorMessage.includes('LMStudio') ||
+            errorMessage.includes('Cannot connect') ||
+            errorMessage.includes('No models available');
+
           return new Response(
             JSON.stringify({
               success: false,

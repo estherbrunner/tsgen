@@ -5,8 +5,7 @@ const API_URL = 'http://localhost:3000/api/generate';
 
 // Main function to request TypeScript function generation
 export async function requestFunctionGeneration(
-  prompt: string,
-  testCases: string[] = []
+  prompt: string
 ): Promise<FunctionResponse> {
   try {
     const response = await fetch(API_URL, {
@@ -14,10 +13,7 @@ export async function requestFunctionGeneration(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        prompt,
-        testCases,
-      } as FunctionRequest),
+      body: JSON.stringify({ prompt } as FunctionRequest),
     });
 
     if (!response.ok) {
@@ -63,7 +59,7 @@ export function displayResults(
 
     const codeElement = document.createElement('pre');
     codeElement.className = 'code';
-    codeElement.textContent = results.code;
+    codeElement.innerHTML = results.code;
     codeContainer.appendChild(codeElement);
 
     container.appendChild(codeContainer);
@@ -106,7 +102,8 @@ export function displayResults(
       } else {
         results.lintResults.issues.forEach(issue => {
           const issueElement = document.createElement('li');
-          issueElement.className = issue.severity === 'error' ? 'error' : 'warning';
+          issueElement.className =
+            issue.severity === 'error' ? 'error' : 'warning';
           issueElement.textContent = `${issue.message} (line ${issue.line})`;
           lintElement.appendChild(issueElement);
         });
@@ -128,17 +125,19 @@ export function displayResults(
       // Test summary
       const testSummary = document.createElement('div');
       testSummary.className = 'test-summary';
-      
-      const passedTests = results.testResults.tests.filter(test => test.status === 'passed').length;
+
+      const passedTests = results.testResults.tests.filter(
+        test => test.status === 'passed'
+      ).length;
       const totalTests = results.testResults.tests.length;
       const hasWarnings = results.testResults.hasWarnings;
-      
+
       let summaryText = `${passedTests}/${totalTests} tests passed`;
       if (hasWarnings) {
         summaryText += ' (with warnings)';
       }
       summaryText += ` in ${results.testResults.totalExecutionTime}ms`;
-      
+
       testSummary.textContent = summaryText;
       testSummary.className = `test-summary ${results.testResults.success ? 'success' : 'error'}`;
       testContainer.appendChild(testSummary);
@@ -150,9 +149,11 @@ export function displayResults(
         warningBanner.innerHTML = `
           <strong>⚠️ Code Quality Warnings:</strong>
           <ul>
-            ${results.testResults.linterWarnings.map(warning => 
-              `<li>${warning.message} (line ${warning.line})</li>`
-            ).join('')}
+            ${results.testResults.linterWarnings
+              .map(
+                warning => `<li>${warning.message} (line ${warning.line})</li>`
+              )
+              .join('')}
           </ul>
         `;
         testContainer.appendChild(warningBanner);
@@ -161,35 +162,30 @@ export function displayResults(
       // Individual test results
       const testList = document.createElement('ul');
       testList.className = 'test-list';
-      
+
       results.testResults.tests.forEach(test => {
         const testItem = document.createElement('li');
         testItem.className = `test-item ${test.status}`;
-        
-        const testName = document.createElement('span');
-        testName.className = 'test-name';
-        testName.textContent = test.name;
-        
+
         const testStatus = document.createElement('span');
         testStatus.className = `test-status ${test.status}`;
         testStatus.textContent = test.status.toUpperCase();
-        
+
         const testMessage = document.createElement('span');
         testMessage.className = 'test-message';
         testMessage.textContent = test.description;
-        
+
         const testTime = document.createElement('span');
         testTime.className = 'test-time';
         testTime.textContent = `${test.executionTime}ms`;
-        
-        testItem.appendChild(testName);
+
         testItem.appendChild(testStatus);
         testItem.appendChild(testMessage);
         testItem.appendChild(testTime);
-        
+
         testList.appendChild(testItem);
       });
-      
+
       testContainer.appendChild(testList);
       container.appendChild(testContainer);
     }
@@ -226,22 +222,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const promptInput = document.getElementById(
         'prompt-input'
       ) as HTMLTextAreaElement;
-      const testCasesInput = document.getElementById(
-        'test-cases'
-      ) as HTMLTextAreaElement;
 
       const prompt = promptInput?.value.trim() || '';
-      const testCasesText = testCasesInput?.value.trim() || '';
 
       if (!prompt) {
         alert('Please enter a function description');
         return;
       }
-
-      // Parse test cases (one per line)
-      const testCases = testCasesText
-        ? testCasesText.split('\n').filter(line => line.trim())
-        : [];
 
       // Disable button and show loading state
       generateButton.disabled = true;
@@ -257,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         // Call the API
-        const results = await requestFunctionGeneration(prompt, testCases);
+        const results = await requestFunctionGeneration(prompt);
 
         // Display results
         displayResults(results, resultsContainer);

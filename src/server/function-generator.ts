@@ -3,7 +3,6 @@
  * Handles the actual code generation from natural language prompts using LMStudio LLM API
  */
 
-import { FunctionRequest } from '../shared/types';
 import * as prettier from 'prettier';
 
 // LMStudio API configuration
@@ -42,13 +41,9 @@ async function getAvailableModels(): Promise<string[]> {
  * Generate a TypeScript function from a natural language prompt using LMStudio LLM
  *
  * @param prompt - Natural language description of the function to create
- * @param options - Optional configuration for the function generation (ignored, uses defaults)
  * @returns The generated TypeScript code as a string
  */
-export async function generateFunction(
-  prompt: string,
-  options: FunctionRequest['options'] = {}
-): Promise<string> {
+export async function generateFunction(prompt: string): Promise<string> {
   try {
     // Get available models - this will throw if LMStudio is not available
     const models = await getAvailableModels();
@@ -101,7 +96,7 @@ export async function generateFunction(
     const cleanedCode = cleanGeneratedCode(generatedCode);
 
     // Format the code with Prettier
-    return await formatGeneratedCode(cleanedCode);
+    return await formatCode(cleanedCode);
   } catch (error) {
     if (error instanceof Error) {
       throw error; // Re-throw with original message for better error reporting
@@ -282,41 +277,13 @@ function cleanGeneratedCode(code: string): string {
 /**
  * Format generated code using Prettier
  */
-async function formatGeneratedCode(code: string): Promise<string> {
+async function formatCode(code: string): Promise<string> {
   try {
-    // Basic validation - check for severely malformed code
-    const openBraces = (code.match(/\{/g) || []).length;
-    const closeBraces = (code.match(/\}/g) || []).length;
-    const openParens = (code.match(/\(/g) || []).length;
-    const closeParens = (code.match(/\)/g) || []).length;
-
-    // If severely malformed, return as-is (Prettier will likely fail anyway)
-    if (
-      Math.abs(openBraces - closeBraces) > 2 ||
-      Math.abs(openParens - closeParens) > 2
-    ) {
-      console.warn(
-        'Generated code appears severely malformed, skipping Prettier formatting'
-      );
-      return code;
-    }
-
     // Get Prettier configuration
     const config = (await prettier.resolveConfig(process.cwd())) || {};
 
-    // Set TypeScript-specific options
-    const options = {
-      ...config,
-      parser: 'typescript',
-      semi: true,
-      singleQuote: true,
-      tabWidth: 2,
-      trailingComma: 'es5' as const,
-      printWidth: 80,
-    };
-
     // Format the code with Prettier
-    const formatted = await prettier.format(code, options);
+    const formatted = await prettier.format(code, config);
     return formatted.trim();
   } catch (error) {
     // If Prettier fails, return the original code

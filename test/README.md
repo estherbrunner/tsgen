@@ -25,14 +25,10 @@ Tests the core function generation functionality:
 - LLM integration with LMStudio
 - Error handling for unavailable services
 - Code cleaning and formatting
-- Various generation options (JSDoc, strict types, etc.)
 
 ### `linter.test.ts`
 Tests the linting and formatting functionality:
 - ESLint integration
-- Prettier code formatting
-- Handling of malformed code
-- Various TypeScript syntax patterns
 
 ### `type-checker.test.ts`
 Tests TypeScript type checking:

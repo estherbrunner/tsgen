@@ -98,8 +98,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-
-
 .results-container {
   margin-top: 30px;
 }
@@ -115,6 +113,12 @@ button:disabled {
   background-color: rgba(40, 167, 69, 0.1);
   color: var(--success-color);
   border: 1px solid var(--success-color);
+}
+
+.status.warning {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: var(--warning-color);
+  border: 1px solid var(--warning-color);
 }
 
 .status.error {
@@ -313,16 +317,16 @@ li.warning {
   button {
     width: 100%;
   }
-  
+
   .test-item {
     grid-template-columns: 1fr;
     gap: 5px;
   }
-  
+
   .test-status {
     justify-self: start;
   }
-  
+
   .test-time {
     text-align: left;
   }

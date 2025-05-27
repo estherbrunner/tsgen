@@ -75,22 +75,7 @@ describe('Function Generator', () => {
 
   test('should handle JSDoc option', async () => {
     const result = await generateFunction(
-      'create a function that multiplies two numbers',
-      {
-        includeJSDoc: true,
-      }
-    );
-
-    expect(result).toBeDefined();
-    expect(result).toContain('function');
-  });
-
-  test('should handle strict types option', async () => {
-    const result = await generateFunction(
-      'create a function that processes data',
-      {
-        strictTypes: true,
-      }
+      'create a function that multiplies two numbers'
     );
 
     expect(result).toBeDefined();
