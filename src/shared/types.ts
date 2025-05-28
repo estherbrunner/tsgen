@@ -2,6 +2,18 @@
  * Shared types for the TypeScript Function Generator
  */
 
+export type FunctionRequest = {
+	prompt: string
+}
+
+export type FunctionResponse = {
+	success: boolean
+	code: string
+	typeCheckResult: TypeCheckResult
+	lintResult: FormatLintResult
+	testResult: TestResult
+}
+
 /**
  * Represents a file name and its content
  */
@@ -168,8 +180,6 @@ export type TestCaseResult = {
 export type GenerationResult = {
 	finalCode: string
 	typeCheckResult: TypeCheckResult
-	formatlintResult?: FormatLintResult
-	testResults?: TestResult
 	iterations: number
 	success: boolean
 	iterationHistory: IterationStep[]

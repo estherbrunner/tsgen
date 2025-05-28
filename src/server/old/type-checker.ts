@@ -3,7 +3,7 @@
  * Validates the generated code for type errors
  */
 
-import { TypeCheckResult } from '../shared/types';
+import { TypeCheckResult } from '../../shared/types';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';

@@ -2,20 +2,12 @@ import type { TypeCheckResult } from '../../shared/types'
 import { formatErrorsForLLM, formatSignatureForLLM } from './analyze'
 
 /**
- * Creates a prompt for generating high-quality TypeScript functions
- *
- * @param {string} userGoal - The specific function requirement or description
- * @returns {string} Complete prompt with instructions and user goal
- * @throws {Error} When userGoal is empty or only whitespace
+ * Create system prompt with standardized high-quality options
  */
-export function createFunctionPrompt(userGoal: string): string {
-	if (!userGoal?.trim()) {
-		throw new Error('User goal cannot be empty or only whitespace')
-	}
+export function createSystemPrompt(): string {
+	return `You are an expert TypeScript developer. Generate clean, well-structured TypeScript functions based on user requirements.
 
-	return `You are an expert TypeScript developer. Generate a single, production-ready TypeScript function based on the user requirement.
-
-REQUIREMENTS:
+STANDARDS (ALWAYS APPLY):
 - Target: ESNext with strict TypeScript types
 - Style: Functional programming (pure functions, immutability)
 - Documentation: Complete JSDoc with @param, @returns, @throws
@@ -30,6 +22,22 @@ JSDoc TEMPLATE:
  * @returns {Type} Return value description
  * @throws {ErrorType} When condition occurs
  */
+`
+}
+
+/**
+ * Creates a prompt for generating high-quality TypeScript functions
+ *
+ * @param {string} userGoal - The specific function requirement or description
+ * @returns {string} Complete prompt with instructions and user goal
+ * @throws {Error} When userGoal is empty or only whitespace
+ */
+export function createFunctionPrompt(userGoal: string): string {
+	if (!userGoal?.trim()) {
+		throw new Error('User goal cannot be empty or only whitespace')
+	}
+
+	return `Generate a single, production-ready TypeScript function based on the user requirement.
 
 OUTPUT: Only the TypeScript function with JSDoc - no explanations or additional text.
 
@@ -55,7 +63,7 @@ export function createRetryPrompt(
 		? formatSignatureForLLM(typeCheckResult.signature)
 		: 'Could not extract function signature'
 
-	return `You are an expert TypeScript developer. The previous function had compilation errors. Fix them and generate a corrected version.
+	return `The previous function had compilation errors. Fix them and generate a corrected version.
 
 ORIGINAL REQUIREMENT:
 ${userGoal}
