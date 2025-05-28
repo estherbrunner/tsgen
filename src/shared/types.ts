@@ -2,113 +2,175 @@
  * Shared types for the TypeScript Function Generator
  */
 
-// Request to generate a TypeScript function
-export interface FunctionRequest {
-  // Natural language prompt describing the function to generate
-  prompt: string;
+/**
+ * Represents a file name and its content
+ */
+export type FileNameAndContents = {
+	name: string
+	contents: string
 }
 
-// Response from the function generation API
-export interface FunctionResponse {
-  // Whether the generation was successful
-  success: boolean;
-
-  // The generated TypeScript code (if successful)
-  code?: string;
-
-  // Error message (if not successful)
-  error?: string;
-
-  // Results of type checking the generated code
-  typeCheckResults?: TypeCheckResult;
-
-  // Results of linting the generated code
-  lintResults?: LintResult;
-
-  // Results of running tests on the generated code
-  testResults?: TestResult;
+/**
+ * Represents temporary files with cleanup functionality
+ */
+export type TempFiles = {
+	paths: string[]
+	cleanup: () => Promise<void>
 }
 
-// Results of type checking
-export interface TypeCheckResult {
-  // Whether type checking passed
-  success: boolean;
-
-  // Any error messages from type checking
-  message?: string;
-
-  // Any warnings from type checking
-  warnings?: string[];
+/**
+ * Represents a function parameter with its type information
+ */
+export type FunctionParameter = {
+	name: string
+	type: string
+	optional: boolean
+	rest: boolean
 }
 
-// Results of linting
-export interface LintResult {
-  // Whether linting passed (no errors, may have warnings)
-  success: boolean;
-
-  // List of linting issues
-  issues: LintIssue[];
+/**
+ * Represents the extracted function signature
+ */
+export type FunctionSignature = {
+	name: string
+	parameters: FunctionParameter[]
+	returnType: string
+	throwsTypes?: string[]
+	isAsync: boolean
 }
 
-// A single linting issue
-export interface LintIssue {
-  // The severity of the issue
-  severity: 'error' | 'warning' | 'info';
-
-  // The message describing the issue
-  message: string;
-
-  // The line number where the issue occurs
-  line: number;
-
-  // The column number where the issue occurs
-  column: number;
-
-  // The rule that triggered the issue
-  rule: string;
+/**
+ * Represents a TypeScript compilation error
+ */
+export type TypeCheckError = {
+	line: number
+	column: number
+	code: number
+	message: string
+	severity: 'error' | 'warning'
 }
 
-// Results of running tests
-export interface TestResult {
-  // Whether all tests passed (no errors or failures, warnings OK)
-  success: boolean;
-
-  // List of test results
-  tests: TestCaseResult[];
-
-  // Overall test coverage percentage (0-100)
-  coverage?: number;
-
-  // Label for the test suite
-  label?: string;
-
-  // Total execution time for all tests (in milliseconds)
-  totalExecutionTime?: number;
-
-  // Whether there are warnings (linter warnings, unused vars, etc)
-  hasWarnings?: boolean;
-
-  // Linter-specific warnings that don't fail the function but should be shown
-  linterWarnings?: LintIssue[];
+/**
+ * Result of TypeScript type checking operation
+ */
+export type TypeCheckResult = {
+	signature: FunctionSignature | null
+	errors: TypeCheckError[]
+	isValid: boolean
 }
 
-// Result of a single test case
-export interface TestCaseResult {
-  // Name or description of the test
-  name: string;
+/**
+ * Configuration for iterative function generation
+ */
+export type IterationConfig = {
+	maxRetries: number
+	llmFunction: (prompt: string) => Promise<string>
+}
 
-  // Description of what this test is checking
-  description: string;
+/**
+ * Information about each iteration step
+ */
+export type IterationStep = {
+	iteration: number
+	code: string
+	errors: TypeCheckError[]
+	errorCount: number
+}
 
-  // Whether the test passed
-  passed: boolean;
+/**
+ * Configuration for formatting and linting operations
+ */
+export type FormatLintConfig = {
+	prettierConfig?: string
+	eslintConfig?: string
+	eslintRules?: Record<string, any>
+}
 
-  // Status of the test execution
-  status: 'passed' | 'failed' | 'error' | 'skipped' | 'warning';
+/**
+ * Represents an ESLint error or warning
+ */
+export type LintError = {
+	line: number
+	column: number
+	ruleId: string | null
+	message: string
+	severity: 'error' | 'warning'
+	fixable: boolean
+}
 
-  // Message describing the test result
-  message: string;
+/**
+ * ESLint processing result
+ */
+export type LintResult = {
+	fixedCode: string | null
+	fixedIssues: number
+	errors: LintError[]
+}
 
-  // Time taken to run the test (in milliseconds)
-  executionTime: number;
+/**
+ * Result of formatting and linting operations
+ */
+export type FormatLintResult = {
+	formattedCode: string
+	prettierApplied: boolean
+	eslintApplied: boolean
+	eslintErrors: LintError[]
+	autoFixedIssues: number
+	success: boolean
+}
+
+/**
+ * Represents a generic test case
+ */
+export type GenericTestCase = {
+	name: string
+	description: string
+	input: any[]
+	shouldThrow?: boolean
+	expectedError?: string
+}
+
+/**
+ * Configuration for test generation and execution
+ */
+export type TestConfig = {
+	timeout?: number
+	verbose?: boolean
+	customTestCases?: GenericTestCase[]
+}
+
+/**
+ * Result of test execution
+ */
+export type TestResult = {
+	totalTests: number
+	passedTests: number
+	failedTests: number
+	testResults: TestCaseResult[]
+	success: boolean
+	executionTime: number
+}
+
+/**
+ * Individual test case result
+ */
+export type TestCaseResult = {
+	name: string
+	description: string
+	passed: boolean
+	error?: string
+	executionTime: number
+}
+
+/**
+ * Result of iterative function generation process
+ */
+export type GenerationResult = {
+	finalCode: string
+	typeCheckResult: TypeCheckResult
+	formatlintResult?: FormatLintResult
+	testResults?: TestResult
+	iterations: number
+	success: boolean
+	iterationHistory: IterationStep[]
 }

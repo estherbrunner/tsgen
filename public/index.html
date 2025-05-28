@@ -1,41 +1,49 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TypeScript Function Generator</title>
-    <link rel="stylesheet" href="/css/index.css" />
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <h1>TypeScript Function Generator</h1>
-        <p class="subtitle">
-          Generate high-quality TypeScript functions with comprehensive testing
-        </p>
-      </header>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>TypeScript Function Generator</title>
+		<link rel="stylesheet" href="/css/index.css" />
+	</head>
+	<body>
+		<div class="container">
+			<header>
+				<h1>TypeScript Function Generator</h1>
+				<p class="subtitle">
+					Generate high-quality TypeScript functions with
+					comprehensive testing
+				</p>
+			</header>
 
-      <div class="card">
-        <form id="function-generator-form">
-          <div class="form-group">
-            <label for="prompt-input">Describe the function you need:</label>
-            <textarea
-              id="prompt-input"
-              placeholder="E.g., Write a function that takes an array of numbers and returns the sum of even numbers"
-              required
-            ></textarea>
-          </div>
-          <button type="submit" id="generate-button">Generate Function</button>
-        </form>
-      </div>
+			<div class="card">
+				<form id="function-generator-form">
+					<div class="form-group">
+						<label for="prompt-input"
+							>Describe the function you need:</label
+						>
+						<textarea
+							id="prompt-input"
+							placeholder="E.g., Write a function that takes an array of numbers and returns the sum of even numbers"
+							required
+						></textarea>
+					</div>
+					<button type="submit" id="generate-button">
+						Generate Function
+					</button>
+				</form>
+			</div>
 
-      <div id="results-container" class="results-container"></div>
+			<div id="results-container" class="results-container"></div>
 
-      <div class="footer">
-        <p>TypeScript Function Generator &copy; 2025 Zeix AG | MIT License</p>
-      </div>
-    </div>
+			<div class="footer">
+				<p>
+					TypeScript Function Generator &copy; 2025 Zeix AG | MIT
+					License
+				</p>
+			</div>
+		</div>
 
-    <script type="module" src="/js/index.js"></script>
-  </body>
+		<script type="module" src="/js/index.js"></script>
+	</body>
 </html>

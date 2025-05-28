@@ -32,5 +32,8 @@
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@zeix/ui-element": "^0.12.2"
   }
 }
