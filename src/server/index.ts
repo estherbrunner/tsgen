@@ -5,7 +5,7 @@ import { join } from 'path'
 import { FunctionRequest, FunctionResponse } from '../shared/types'
 import { generateFunctionWithRetries } from './core/generate'
 import { llmFunction } from './io/llm'
-import { formatAndLintFunction } from './io/format'
+import { formatAndLintFunction } from './io/eslint'
 import { generateAndRunTests } from './io/test'
 
 const PORT = process.env.PORT || 3000

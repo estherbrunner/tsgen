@@ -1,8 +1,8 @@
 import { execAsync } from './exec'
 import { createTempFiles } from './fs'
 
-import { TestCaseResult, TestConfig, TestResult } from '../../shared/types'
-import { extractFunctionSignature } from '../core/analyze'
+import type { TestCaseResult, TestConfig, TestResult } from '../../shared/types'
+import { extractFunctionSignature } from '../core/check'
 import { generateBunTestCode, generateGenericTests } from '../core/testgen'
 
 /**

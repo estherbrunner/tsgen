@@ -1,5 +1,5 @@
 import type { TypeCheckResult } from '../../shared/types'
-import { formatErrorsForLLM, formatSignatureForLLM } from './analyze'
+import { formatErrorsForLLM, formatSignatureForLLM } from './check'
 
 /**
  * Create system prompt with standardized high-quality options
@@ -10,7 +10,8 @@ export function createSystemPrompt(): string {
 STANDARDS (ALWAYS APPLY):
 - Target: ESNext with strict TypeScript types
 - Style: Functional programming (pure functions, immutability)
-- Documentation: Complete JSDoc with @param, @returns, @throws
+- Types: If structured types are required, declare them at the beginning
+- Documentation: Complete JSDoc immediately before the function with @param, @returns, @throws
 - Quality: Clean, readable, maintainable code
 - Errors: Proper error handling with specific error types
 
@@ -39,7 +40,7 @@ export function createFunctionPrompt(userGoal: string): string {
 
 	return `Generate a single, production-ready TypeScript function based on the user requirement.
 
-OUTPUT: Only the TypeScript function with JSDoc - no explanations or additional text.
+OUTPUT: Only the TypeScript function with JSDoc and associated types if necessary - no explanations or additional text.
 
 USER REQUIREMENT:
 ${userGoal}`
@@ -85,7 +86,7 @@ REQUIREMENTS FOR CORRECTION:
 - Maintain the original function purpose and behavior
 - Keep code clean, readable, and maintainable
 
-OUTPUT: Only the corrected TypeScript function with JSDoc - no explanations or additional text.`
+OUTPUT: Only the corrected TypeScript function with JSDoc and associated types if necessary - no explanations or additional text.`
 }
 
 /**

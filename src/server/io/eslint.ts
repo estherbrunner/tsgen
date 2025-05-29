@@ -1,32 +1,12 @@
-import {
+import type {
 	FormatLintConfig,
 	FormatLintResult,
 	LintError,
 	LintResult,
 } from '../../shared/types'
+import { formatCode } from '../core/format'
 import { execAsync } from './exec'
-import { createTempFiles, readFile, writeFile } from './fs'
-
-/**
- * Applies Prettier formatting to TypeScript code
- *
- * @param {string} path - Path to the temporary TypeScript file
- * @param {string} prettierConfig - Optional path to Prettier config file
- * @returns {Promise<string>} Formatted code
- * @throws {Error} When Prettier command fails
- */
-export async function applyPrettierFormatting(
-	path: string,
-	prettierConfig?: string
-): Promise<string> {
-	const configArg = prettierConfig ? `--config ${prettierConfig}` : ''
-	const prettierCommand = `npx prettier ${configArg} --parser typescript --write ${path}`
-
-	await execAsync(prettierCommand)
-
-	// Read the formatted file
-	return await readFile(path)
-}
+import { createTempFiles, readFile } from './fs'
 
 /**
  * Applies ESLint with auto-fix to TypeScript code
@@ -203,71 +183,55 @@ export async function formatAndLintFunction(
 		throw new Error('Code cannot be empty or only whitespace')
 	}
 
-	let formattedCode = code
+	let formattedCode = await formatCode(code)
 	let prettierApplied = false
 	let eslintApplied = false
 	let eslintErrors: LintError[] = []
 	let autoFixedIssues = 0
 
-	const fileName = 'ts-format-temp.ts'
+	const fileName = 'ts-lint-temp.ts'
 	let tempFiles
 	try {
-		tempFiles = await createTempFiles([{ name: fileName, contents: code }])
+		tempFiles = await createTempFiles([
+			{
+				name: fileName,
+				contents: formattedCode,
+			},
+		])
 	} catch (error) {
 		throw error
 	}
 
+	// Apply ESLint with auto-fix
 	try {
-		// Step 1: Apply Prettier formatting
-		try {
-			formattedCode = await applyPrettierFormatting(
-				tempFiles.paths[0],
-				config.prettierConfig
-			)
-			prettierApplied = true
-
-			// Update temp file with formatted code
-			await writeFile(tempFiles.paths[0], formattedCode)
-		} catch (prettierError) {
-			console.warn('Prettier formatting failed:', prettierError)
-			// Continue with original code if Prettier fails
-		}
-
-		// Step 2: Apply ESLint with auto-fix
-		try {
-			const eslintResult = await applyESLintWithAutoFix(
-				tempFiles.paths[0],
-				config
-			)
-
-			if (eslintResult.fixedCode) {
-				formattedCode = eslintResult.fixedCode
-				autoFixedIssues = eslintResult.fixedIssues
-			}
-
-			eslintErrors = eslintResult.errors
-			eslintApplied = true
-		} catch (eslintError) {
-			console.warn('ESLint processing failed:', eslintError)
-			// Continue without ESLint if it fails
-		}
-
-		return {
-			formattedCode,
-			prettierApplied,
-			eslintApplied,
-			eslintErrors,
-			autoFixedIssues,
-			success:
-				prettierApplied &&
-				eslintApplied &&
-				eslintErrors.filter(e => e.severity === 'error').length === 0,
-		}
-	} catch (error) {
-		throw new Error(
-			`Format and lint processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+		const eslintResult = await applyESLintWithAutoFix(
+			tempFiles.paths[0],
+			config
 		)
+
+		if (eslintResult.fixedCode) {
+			formattedCode = eslintResult.fixedCode
+			autoFixedIssues = eslintResult.fixedIssues
+		}
+
+		eslintErrors = eslintResult.errors
+		eslintApplied = true
+	} catch (eslintError) {
+		console.warn('ESLint processing failed:', eslintError)
+		// Continue without ESLint if it fails
 	} finally {
 		tempFiles.cleanup()
+	}
+
+	return {
+		formattedCode,
+		prettierApplied,
+		eslintApplied,
+		eslintErrors,
+		autoFixedIssues,
+		success:
+			prettierApplied &&
+			eslintApplied &&
+			eslintErrors.filter(e => e.severity === 'error').length === 0,
 	}
 }

@@ -2,7 +2,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 
-import { FileNameAndContents, TempFiles } from '../../shared/types'
+import type { FileNameAndContents, TempFiles } from '../../shared/types'
 
 /**
  * Read the contents of a file.

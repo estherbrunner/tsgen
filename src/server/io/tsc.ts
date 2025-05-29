@@ -1,10 +1,7 @@
-import type { TempFiles, TypeCheckResult } from '../../shared/types'
+import type { TypeCheckResult } from '../../shared/types'
 import { execAsync } from './exec'
 import { createTempFiles } from './fs'
-import {
-	extractFunctionSignature,
-	parseTypeScriptErrors,
-} from '../core/analyze'
+import { extractFunctionSignature, parseTypeScriptErrors } from '../core/check'
 
 /**
  * Type checks a TypeScript function using the local TypeScript compiler

@@ -5,7 +5,8 @@ import type {
 	TypeCheckResult,
 } from '../../shared/types'
 import { typeCheckFunction } from '../io/tsc'
-import { hasCompilationErrors } from './analyze'
+import { hasCompilationErrors } from './check'
+import { extractCodeBlock } from './extract'
 import { createFunctionPrompt, createRetryPrompt } from './prompt'
 
 /**
@@ -39,7 +40,7 @@ export async function generateFunctionWithRetries(
 	// Initial generation
 	const initialPrompt = createFunctionPrompt(userGoal)
 	currentCode = await config.llmFunction(initialPrompt)
-	typeCheckResult = await typeCheckFunction(currentCode)
+	typeCheckResult = await typeCheckFunction(extractCodeBlock(currentCode))
 
 	iterationHistory.push({
 		iteration: 0,

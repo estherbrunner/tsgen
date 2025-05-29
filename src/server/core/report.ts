@@ -3,7 +3,7 @@ import type {
 	GenerationResult,
 	TestResult,
 } from '../../shared/types'
-import { formatErrorsForLLM } from './analyze'
+import { formatErrorsForLLM } from './check'
 
 /**
  * Creates a summary report of the generation process
