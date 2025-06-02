@@ -1,5 +1,5 @@
 import type {
-	FormatLintResult,
+	LintResult,
 	GenerationResult,
 	TestResult,
 } from '../../shared/types'
@@ -45,23 +45,19 @@ export function createGenerationReport(result: GenerationResult): string {
  * @param {FormatLintResult} result - Complete formatting and linting result
  * @returns {string} Human-readable summary report
  */
-export function createFormatLintReport(result: FormatLintResult): string {
+export function createFormatLintReport(result: LintResult): string {
 	let report = `=== FORMATTING & LINTING REPORT ===\n\n`
 
-	report += `Prettier Applied: ${result.prettierApplied ? '✅' : '❌'}\n`
-	report += `ESLint Applied: ${result.eslintApplied ? '✅' : '❌'}\n`
-	report += `Auto-fixed Issues: ${result.autoFixedIssues}\n`
-	report += `Remaining Errors: ${result.eslintErrors.filter(e => e.severity === 'error').length}\n`
-	report += `Remaining Warnings: ${result.eslintErrors.filter(e => e.severity === 'warning').length}\n`
+	report += `Auto-fixed Issues: ${result.fixedIssues}\n`
+	report += `Remaining Errors: ${result.errors.filter(e => e.severity === 'error').length}\n`
+	report += `Remaining Warnings: ${result.errors.filter(e => e.severity === 'warning').length}\n`
 	report += `Overall Success: ${result.success ? '✅' : '❌'}\n\n`
 
-	if (result.eslintErrors.length > 0) {
+	if (result.errors.length > 0) {
 		report += `=== ESLINT ISSUES ===\n`
 
-		const errors = result.eslintErrors.filter(e => e.severity === 'error')
-		const warnings = result.eslintErrors.filter(
-			e => e.severity === 'warning'
-		)
+		const errors = result.errors.filter(e => e.severity === 'error')
+		const warnings = result.errors.filter(e => e.severity === 'warning')
 
 		if (errors.length > 0) {
 			report += `ERRORS:\n`

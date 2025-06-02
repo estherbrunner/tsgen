@@ -51,9 +51,9 @@ export async function typeCheckFunction(
 		const signature = extractFunctionSignature(functionCode)
 
 		return {
+			success: errors.length === 0 && signature !== null,
 			signature,
 			errors,
-			isValid: errors.length === 0 && signature !== null,
 		}
 	} catch (error) {
 		throw new Error(

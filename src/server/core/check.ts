@@ -35,7 +35,7 @@ export function parseTypeScriptErrors(
 			errors.push({
 				line: parseInt(errorMatch[1], 10),
 				column: parseInt(errorMatch[2], 10),
-				code: parseInt(errorMatch[4], 10),
+				errorCode: parseInt(errorMatch[4], 10),
 				message: errorMatch[5].trim(),
 				severity: errorMatch[3] as 'error' | 'warning',
 			})
@@ -119,7 +119,7 @@ function parseParameters(paramString: string): FunctionParameter[] {
 	for (const part of paramParts) {
 		if (!part) continue
 
-		const rest = part.startsWith('...')
+		const isRest = part.startsWith('...')
 		const cleanPart = part.replace(/^\.\.\./, '')
 
 		const [nameWithOptional, typeWithDefault] = cleanPart
@@ -127,7 +127,7 @@ function parseParameters(paramString: string): FunctionParameter[] {
 			.map(s => s?.trim())
 		if (!nameWithOptional) continue
 
-		const optional =
+		const isOptional =
 			nameWithOptional.includes('?') || typeWithDefault?.includes('=')
 		const name = nameWithOptional.replace('?', '')
 
@@ -140,8 +140,8 @@ function parseParameters(paramString: string): FunctionParameter[] {
 		params.push({
 			name,
 			type,
-			optional,
-			rest,
+			isOptional,
+			isRest,
 		})
 	}
 
@@ -175,14 +175,14 @@ export function formatErrorsForLLM(errors: TypeCheckError[]): string {
 	if (errorsByType.error) {
 		formatted += `ERRORS (${errorsByType.error.length}):\n`
 		errorsByType.error.forEach((error, index) => {
-			formatted += `${index + 1}. Line ${error.line}, Column ${error.column} (TS${error.code}): ${error.message}\n`
+			formatted += `${index + 1}. Line ${error.line}, Column ${error.column} (TS${error.errorCode}): ${error.message}\n`
 		})
 	}
 
 	if (errorsByType.warning) {
 		formatted += `\nWARNINGS (${errorsByType.warning.length}):\n`
 		errorsByType.warning.forEach((error, index) => {
-			formatted += `${index + 1}. Line ${error.line}, Column ${error.column} (TS${error.code}): ${error.message}\n`
+			formatted += `${index + 1}. Line ${error.line}, Column ${error.column} (TS${error.errorCode}): ${error.message}\n`
 		})
 	}
 
@@ -197,7 +197,7 @@ export function formatErrorsForLLM(errors: TypeCheckError[]): string {
  */
 export function formatSignatureForLLM(signature: FunctionSignature): string {
 	const params = signature.parameters
-		.map(p => `${p.name}${p.optional ? '?' : ''}: ${p.type}`)
+		.map(p => `${p.name}${p.isOptional ? '?' : ''}: ${p.type}`)
 		.join(', ')
 
 	return `DETECTED SIGNATURE:

@@ -29,7 +29,7 @@ export async function generateAndRunTests(
 	// Generate test cases
 	const testCases = [
 		...generateGenericTests(signature),
-		...(config.customTestCases || []),
+		...(config.testCases || []),
 	]
 	const functionFile = {
 		name: 'bun-test-function.ts',

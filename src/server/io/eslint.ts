@@ -1,9 +1,4 @@
-import type {
-	FormatLintConfig,
-	FormatLintResult,
-	LintError,
-	LintResult,
-} from '../../shared/types'
+import type { LintConfig, LintError, LintResult } from '../../shared/types'
 import { formatCode } from '../core/format'
 import { execAsync } from './exec'
 import { createTempFiles, readFile } from './fs'
@@ -13,12 +8,12 @@ import { createTempFiles, readFile } from './fs'
  *
  * @param {string} filePath - Path to the temporary TypeScript file
  * @param {FormatLintConfig} config - Configuration with ESLint settings
- * @returns {Promise<LintResult>} ESLint processing results
+ * @returns {Promise<Partial<LintResult>>} ESLint processing results
  */
 export async function applyESLintWithAutoFix(
 	filePath: string,
-	config: FormatLintConfig
-): Promise<LintResult> {
+	config: LintConfig
+): Promise<Partial<LintResult>> {
 	// Create temporary ESLint config if custom rules provided
 	let configFile: string | null = null
 
@@ -36,7 +31,7 @@ export async function applyESLintWithAutoFix(
 			: ''
 
 	// First, try to auto-fix issues
-	let fixedCode: string | null = null
+	let code: string | null = null
 	let fixedIssues = 0
 
 	try {
@@ -44,13 +39,16 @@ export async function applyESLintWithAutoFix(
 		await execAsync(fixCommand)
 
 		// Read potentially fixed file
-		fixedCode = await readFile(filePath)
+		code = await readFile(filePath)
 		fixedIssues = 1 // We'll get the actual count from the lint report
 	} catch (fixError: any) {
 		// ESLint returns non-zero exit code even when auto-fixing, so we continue
 		try {
-			fixedCode = await readFile(filePath)
+			code = await readFile(filePath)
 		} catch {
+			return {
+				success: false,
+			}
 			// If we can't read the file, there was no fix applied
 		}
 	}
@@ -68,7 +66,8 @@ export async function applyESLintWithAutoFix(
 	} */
 
 	return {
-		fixedCode,
+		success: errors.filter(e => e.severity === 'error').length === 0,
+		code,
 		fixedIssues,
 		errors,
 	}
@@ -177,17 +176,19 @@ async function createTempESLintConfig(
  */
 export async function formatAndLintFunction(
 	code: string,
-	config: FormatLintConfig = {}
-): Promise<FormatLintResult> {
+	config: LintConfig = {}
+): Promise<LintResult> {
 	if (!code?.trim()) {
 		throw new Error('Code cannot be empty or only whitespace')
 	}
 
 	let formattedCode = await formatCode(code)
-	let prettierApplied = false
-	let eslintApplied = false
-	let eslintErrors: LintError[] = []
-	let autoFixedIssues = 0
+	let lintResult: LintResult = {
+		success: false,
+		code: formattedCode,
+		fixedIssues: 0,
+		errors: [],
+	}
 
 	const fileName = 'ts-lint-temp.ts'
 	let tempFiles
@@ -204,18 +205,11 @@ export async function formatAndLintFunction(
 
 	// Apply ESLint with auto-fix
 	try {
-		const eslintResult = await applyESLintWithAutoFix(
+		const partialLintResult = await applyESLintWithAutoFix(
 			tempFiles.paths[0],
 			config
 		)
-
-		if (eslintResult.fixedCode) {
-			formattedCode = eslintResult.fixedCode
-			autoFixedIssues = eslintResult.fixedIssues
-		}
-
-		eslintErrors = eslintResult.errors
-		eslintApplied = true
+		lintResult = { ...lintResult, ...partialLintResult }
 	} catch (eslintError) {
 		console.warn('ESLint processing failed:', eslintError)
 		// Continue without ESLint if it fails
@@ -223,15 +217,5 @@ export async function formatAndLintFunction(
 		tempFiles.cleanup()
 	}
 
-	return {
-		formattedCode,
-		prettierApplied,
-		eslintApplied,
-		eslintErrors,
-		autoFixedIssues,
-		success:
-			prettierApplied &&
-			eslintApplied &&
-			eslintErrors.filter(e => e.severity === 'error').length === 0,
-	}
+	return lintResult
 }

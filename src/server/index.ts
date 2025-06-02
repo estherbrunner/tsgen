@@ -35,7 +35,7 @@ async function startServer() {
 
 					// Generate TypeScript function from prompt (always use high-quality defaults)
 					const generationResult = await generateFunctionWithRetries(
-						body.prompt,
+						body.userGoal,
 						{
 							maxRetries: 3,
 							llmFunction,
@@ -44,22 +44,19 @@ async function startServer() {
 
 					// Format and lint the generated code
 					const lintResult = await formatAndLintFunction(
-						generationResult.finalCode
+						generationResult.code
 					)
 
 					// Run tests on the formatted code
 					const testResult = await generateAndRunTests(
-						lintResult.formattedCode
+						lintResult.code
 					)
 
 					// Apply syntax highlighting
-					const highlightedCode = await codeToHtml(
-						lintResult.formattedCode,
-						{
-							lang: 'typescript',
-							theme: 'monokai',
-						}
-					)
+					const highlightedCode = await codeToHtml(lintResult.code, {
+						lang: 'typescript',
+						theme: 'monokai',
+					})
 
 					const response: FunctionResponse = {
 						success: true,

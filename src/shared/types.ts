@@ -2,18 +2,6 @@
  * Shared types for the TypeScript Function Generator
  */
 
-export type FunctionRequest = {
-	prompt: string
-}
-
-export type FunctionResponse = {
-	success: boolean
-	code: string
-	typeCheckResult: TypeCheckResult
-	lintResult: FormatLintResult
-	testResult: TestResult
-}
-
 /**
  * Represents a file name and its content
  */
@@ -31,13 +19,20 @@ export type TempFiles = {
 }
 
 /**
+ * Represents a request to write a TypeScript function
+ */
+export type FunctionRequest = {
+	userGoal: string
+}
+
+/**
  * Represents a function parameter with its type information
  */
 export type FunctionParameter = {
 	name: string
 	type: string
-	optional: boolean
-	rest: boolean
+	isOptional: boolean
+	isRest: boolean
 }
 
 /**
@@ -57,7 +52,7 @@ export type FunctionSignature = {
 export type TypeCheckError = {
 	line: number
 	column: number
-	code: number
+	errorCode: number
 	message: string
 	severity: 'error' | 'warning'
 }
@@ -66,9 +61,9 @@ export type TypeCheckError = {
  * Result of TypeScript type checking operation
  */
 export type TypeCheckResult = {
+	success: boolean
 	signature: FunctionSignature | null
 	errors: TypeCheckError[]
-	isValid: boolean
 }
 
 /**
@@ -90,10 +85,20 @@ export type IterationStep = {
 }
 
 /**
+ * Result of iterative function generation process
+ */
+export type GenerationResult = {
+	success: boolean
+	code: string
+	typeCheckResult: TypeCheckResult
+	iterations: number
+	iterationHistory: IterationStep[]
+}
+
+/**
  * Configuration for formatting and linting operations
  */
-export type FormatLintConfig = {
-	prettierConfig?: string
+export type LintConfig = {
 	eslintConfig?: string
 	eslintRules?: Record<string, any>
 }
@@ -114,27 +119,16 @@ export type LintError = {
  * ESLint processing result
  */
 export type LintResult = {
-	fixedCode: string | null
+	success: boolean
+	code: string
 	fixedIssues: number
 	errors: LintError[]
 }
 
 /**
- * Result of formatting and linting operations
- */
-export type FormatLintResult = {
-	formattedCode: string
-	prettierApplied: boolean
-	eslintApplied: boolean
-	eslintErrors: LintError[]
-	autoFixedIssues: number
-	success: boolean
-}
-
-/**
  * Represents a generic test case
  */
-export type GenericTestCase = {
+export type TestCase = {
 	name: string
 	description: string
 	input: any[]
@@ -148,19 +142,7 @@ export type GenericTestCase = {
 export type TestConfig = {
 	timeout?: number
 	verbose?: boolean
-	customTestCases?: GenericTestCase[]
-}
-
-/**
- * Result of test execution
- */
-export type TestResult = {
-	totalTests: number
-	passedTests: number
-	failedTests: number
-	testResults: TestCaseResult[]
-	success: boolean
-	executionTime: number
+	testCases?: TestCase[]
 }
 
 /**
@@ -175,12 +157,24 @@ export type TestCaseResult = {
 }
 
 /**
- * Result of iterative function generation process
+ * Result of test execution
  */
-export type GenerationResult = {
-	finalCode: string
-	typeCheckResult: TypeCheckResult
-	iterations: number
+export type TestResult = {
 	success: boolean
-	iterationHistory: IterationStep[]
+	totalTests: number
+	passedTests: number
+	failedTests: number
+	testResults: TestCaseResult[]
+	executionTime: number
+}
+
+/**
+ * Represents a response to write a TypeScript function
+ */
+export type FunctionResponse = {
+	success: boolean
+	code: string
+	typeCheckResult: TypeCheckResult
+	lintResult: LintResult
+	testResult: TestResult
 }

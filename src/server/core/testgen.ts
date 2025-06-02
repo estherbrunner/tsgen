@@ -1,19 +1,17 @@
 import type {
 	FunctionParameter,
 	FunctionSignature,
-	GenericTestCase,
+	TestCase,
 } from '../../shared/types'
 
 /**
  * Generates generic test cases for a function signature
  *
  * @param {FunctionSignature} signature - Function signature to generate tests for
- * @returns {GenericTestCase[]} Array of generated test cases
+ * @returns {TestCase[]} Array of generated test cases
  */
-export function generateGenericTests(
-	signature: FunctionSignature
-): GenericTestCase[] {
-	const tests: GenericTestCase[] = []
+export function generateGenericTests(signature: FunctionSignature): TestCase[] {
+	const tests: TestCase[] = []
 
 	// Test 1: Normal execution with typical values
 	tests.push({
@@ -70,12 +68,12 @@ export function generateGenericTests(
  * Generates Bun-compatible test code
  *
  * @param {FunctionSignature} signature - Function signature information
- * @param {GenericTestCase[]} testCases - Test cases to generate code for
+ * @param {TestCase[]} testCases - Test cases to generate code for
  * @returns {string} Complete Bun test file content
  */
 export function generateBunTestCode(
 	signature: FunctionSignature,
-	testCases: GenericTestCase[]
+	testCases: TestCase[]
 ): string {
 	const functionName = signature.name
 	const isAsync = signature.isAsync
@@ -119,7 +117,7 @@ describe('${functionName}', () => {
 // Re-export all the helper functions from the original code with updated types
 function generateTypicalInputs(parameters: FunctionParameter[]): any[] {
 	return parameters.map(param => {
-		if (param.rest) {
+		if (param.isRest) {
 			return generateTypicalValue(param.type.replace(/\[\]$/, ''))
 		}
 		return generateTypicalValue(param.type)
@@ -136,15 +134,15 @@ function generateEdgeCaseInputs(parameters: FunctionParameter[]): any[] {
 function generateNullTests(
 	name: string,
 	parameters: FunctionParameter[]
-): GenericTestCase[] {
-	const tests: GenericTestCase[] = []
-	const nonOptionalParams = parameters.filter(p => !p.optional)
+): TestCase[] {
+	const tests: TestCase[] = []
+	const nonOptionalParams = parameters.filter(p => !p.isOptional)
 
 	if (nonOptionalParams.length === 0) return tests
 
 	// Test with null values
 	const nullInputs = parameters.map(param =>
-		param.optional ? generateTypicalValue(param.type) : null
+		param.isOptional ? generateTypicalValue(param.type) : null
 	)
 
 	tests.push({
@@ -157,7 +155,7 @@ function generateNullTests(
 
 	// Test with undefined values
 	const undefinedInputs = parameters.map(param =>
-		param.optional ? generateTypicalValue(param.type) : undefined
+		param.isOptional ? generateTypicalValue(param.type) : undefined
 	)
 
 	tests.push({
@@ -174,8 +172,8 @@ function generateNullTests(
 function generateBoundaryTests(
 	name: string,
 	parameters: FunctionParameter[]
-): GenericTestCase[] {
-	const tests: GenericTestCase[] = []
+): TestCase[] {
+	const tests: TestCase[] = []
 
 	for (let i = 0; i < parameters.length; i++) {
 		const param = parameters[i]
@@ -203,8 +201,8 @@ function generateBoundaryTests(
 function generateMalformedInputTests(
 	name: string,
 	parameters: FunctionParameter[]
-): GenericTestCase[] {
-	const tests: GenericTestCase[] = []
+): TestCase[] {
+	const tests: TestCase[] = []
 
 	for (let i = 0; i < parameters.length; i++) {
 		const param = parameters[i]
@@ -235,8 +233,8 @@ function generateEmptyInputs(parameters: FunctionParameter[]): any[] {
 function generateLargeValueTests(
 	name: string,
 	parameters: FunctionParameter[]
-): GenericTestCase[] {
-	const tests: GenericTestCase[] = []
+): TestCase[] {
+	const tests: TestCase[] = []
 
 	for (let i = 0; i < parameters.length; i++) {
 		const param = parameters[i]

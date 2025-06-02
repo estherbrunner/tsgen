@@ -77,10 +77,10 @@ export async function generateFunctionWithRetries(
 	}
 
 	return {
-		finalCode: currentCode,
+		success: !hasCompilationErrors(typeCheckResult),
+		code: currentCode,
 		typeCheckResult,
 		iterations: iteration - 1,
-		success: !hasCompilationErrors(typeCheckResult),
 		iterationHistory,
 	}
 }
